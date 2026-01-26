@@ -11,19 +11,15 @@ class EditLogbook extends EditRecord
 {
     protected static string $resource = LogbookResource::class;
 
-    // 1. UBAH LABEL TOMBOL SAVE BAWAAN
-    protected function getSaveFormAction(): Actions\Action
+    protected function getRedirectUrl(): string
     {
-        return parent::getSaveFormAction()
-            ->label('Simpan Perubahan') // Ubah label
-            ->icon('heroicon-o-check');
+        return $this->getResource()::getUrl('index');
     }
 
-    // 2. ATUR TOMBOL DI HEADER (DELETE & FINALISASI)
     protected function getHeaderActions(): array
     {
         return [
-            // Tombol Delete (Hanya muncul jika belum final atau user adalah admin)
+            // Tombol Delete
             Actions\DeleteAction::make()
                 ->visible(fn () => !$this->record->is_submitted || auth()->user()->hasRole('super_admin')),
 
@@ -36,20 +32,30 @@ class EditLogbook extends EditRecord
                 ->modalHeading('Finalisasi Logbook')
                 ->modalDescription('Setelah difinalisasi, logbook tidak dapat diedit kembali. Apakah Anda yakin?')
                 ->modalSubmitActionLabel('Ya, Kunci Logbook')
-                ->visible(fn () => !$this->record->is_submitted) // Hanya muncul jika belum submit
+                ->visible(fn () => !$this->record->is_submitted)
                 ->action(function () {
-                    // Update status
                     $this->record->update(['is_submitted' => true]);
-                    
-                    Notification::make()
-                        ->title('Logbook Berhasil Difinalisasi')
-                        ->success()
-                        ->send();
-                    
-                    // Refresh halaman agar form terkunci
+                    Notification::make()->title('Logbook Berhasil Difinalisasi')->success()->send();
                     $this->redirect($this->getResource()::getUrl('edit', ['record' => $this->record]));
                 }),
         ];
+    }
+    
+    protected function getSaveFormAction(): Actions\Action
+    {
+        return Actions\Action::make('save')
+            ->label('Simpan Perubahan')
+            ->icon('heroicon-m-check')
+            ->color('primary')
+            ->action(fn () => $this->save())
+            ->requiresConfirmation()
+            ->modalHeading('Update Data')
+            ->modalDescription('Apakah Anda yakin ingin menyimpan perubahan ini?')
+            ->modalSubmitActionLabel('Ya, Update')
+            ->modalCancelActionLabel('Batal')
+            ->modalIcon('heroicon-o-pencil-square')
+            ->modalIconColor('warning')
+            ->keyBindings(['mod+s']);
     }
 
     // 3. SEMBUNYIKAN TOMBOL SAVE JIKA SUDAH FINAL

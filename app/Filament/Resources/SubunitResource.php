@@ -27,8 +27,8 @@ class SubunitResource extends Resource
                     ->searchable()
                     ->preload()
                     ->required(),
-                Forms\Components\TextInput::make('name')->required(),
-                Forms\Components\Toggle::make('is_active')->default(true),
+                Forms\Components\TextInput::make('name')->label('Nama Sub Unit')->required(),
+                Forms\Components\Toggle::make('is_active')->label('Status Aktif')->default(true),
             ]);
     }
 
@@ -38,10 +38,11 @@ class SubunitResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('unit.name')->label('Unit')->sortable(),
                 Tables\Columns\TextColumn::make('name')->label('Sub Unit')->searchable(),
+                Tables\Columns\IconColumn::make('is_active')->boolean()->label('Status'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                // Tables\Actions\DeleteAction::make(),
             ]);
     }
     

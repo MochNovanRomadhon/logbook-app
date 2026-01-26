@@ -15,6 +15,9 @@ class DirectorateResource extends Resource
     protected static ?string $model = Directorate::class;
     protected static ?string $navigationIcon = 'heroicon-o-building-library';
     protected static ?string $navigationGroup = 'Master Data';
+    
+    protected static ?string $modelLabel = 'Direktorat';
+    protected static ?string $pluralModelLabel = 'Direktorat';
     protected static ?string $navigationLabel = 'Direktorat';
     
 
@@ -27,7 +30,7 @@ class DirectorateResource extends Resource
                     ->required()
                     ->maxLength(255),
                 Forms\Components\Toggle::make('is_active')
-                    ->label('Aktif')
+                    ->label('Status Aktif') // Updated label
                     ->default(true),
             ]);
     }
@@ -37,11 +40,11 @@ class DirectorateResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')->searchable()->sortable(),
-                Tables\Columns\IconColumn::make('is_active')->boolean(),
+                Tables\Columns\IconColumn::make('is_active')->boolean()->label('Status'), // Updated label
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                // Tables\Actions\DeleteAction::make(),
             ]);
     }
 

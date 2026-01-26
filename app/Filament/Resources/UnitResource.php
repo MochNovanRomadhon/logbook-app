@@ -29,7 +29,7 @@ class UnitResource extends Resource
                 Forms\Components\TextInput::make('name')
                     ->label('Nama Unit')
                     ->required(),
-                Forms\Components\Toggle::make('is_active')->default(true),
+                Forms\Components\Toggle::make('is_active')->label('Status Aktif')->default(true),
             ]);
     }
 
@@ -39,11 +39,11 @@ class UnitResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('directorate.name')->label('Direktorat')->sortable(),
                 Tables\Columns\TextColumn::make('name')->label('Unit')->searchable()->sortable(),
-                Tables\Columns\IconColumn::make('is_active')->boolean(),
+                Tables\Columns\IconColumn::make('is_active')->boolean()->label('Status'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                // Tables\Actions\DeleteAction::make(),
             ]);
     }
     

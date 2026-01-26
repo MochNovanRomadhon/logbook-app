@@ -31,6 +31,7 @@ class LogbookResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-book-open';
     protected static ?string $navigationLabel = 'Logbook Harian';
     protected static ?string $navigationGroup = 'Manajemen Tugas';
+    protected static ?int $navigationSort = 2;
 
     public static function canCreate(): bool
     {
@@ -219,9 +220,9 @@ class LogbookResource extends Resource
                 Tables\Filters\SelectFilter::make('user_id')
                     ->label('Cari Pegawai')
                     ->placeholder('Pilih Pegawai') // <--- GANTI PLACEHOLDER
-                    // ->relationship('user', 'name')
+                    ->relationship('user', 'name')
                     ->searchable()
-                    ->preload()
+                    // ->preload()
                     ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
 
                 Tables\Filters\Filter::make('date_range')
