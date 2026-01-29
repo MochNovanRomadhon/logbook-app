@@ -57,12 +57,15 @@ class UserResource extends Resource
                     // --- UPDATE 2: PASSWORD CANGGIH ---
                     Forms\Components\TextInput::make('password')
                         ->password()
-                        ->revealable() // <--- Menambahkan ikon mata (show/hide)
-                        ->minLength(8) // <--- Wajib minimal 8 karakter
-                        ->rule(Password::default()) // Opsional: Memaksa password standar aman (huruf+angka)
+                        ->revealable()
+                        ->rule(Password::min(8)
+                            ->mixedCase()
+                            ->numbers()
+                        )
+                        ->validationAttribute('password')
                         ->dehydrated(fn ($state) => filled($state))
                         ->required(fn (string $context): bool => $context === 'create')
-                        ->helperText('Minimal 8 karakter. Kosongkan jika tidak ingin mengubah password.'),
+                        ->helperText('Minimal 8 karakter, harus mengandung huruf besar & angka. Kosongkan jika tidak ingin mengubah.'),
 
                     Forms\Components\Toggle::make('is_active')
                         ->label('Status Aktif')

@@ -59,6 +59,24 @@ class TaskCompletionChart extends ChartWidget
         return null;
     }
 
+    // --- 3. FILTER STATUS TASK ---
+    public ?string $filter = 'completed'; // Default filter
+
+    protected function getFilters(): ?array
+    {
+        // Hanya tampilkan filter jika user adalah Pengawas
+        if (! Auth::user()->hasRole('pengawas')) {
+            return null;
+        }
+
+        return [
+            '' => 'Semua Status',
+            'pending' => 'Pending',
+            'in_progress' => 'Sedang Dikerjakan',
+            'completed' => 'Selesai',
+        ];
+    }
+
     protected function getData(): array
     {
         $user = Auth::user();
@@ -121,13 +139,50 @@ class TaskCompletionChart extends ChartWidget
             ];
         }
 
+        // Ambil status dari filter chart (bukan filter global)
+        $statusFilter = $this->filter;
+
+        // Tentukan Label Grafik berdasarkan status
+        $chartLabel = match ($statusFilter) {
+            'pending' => 'Total Tugas Pending',
+            'in_progress' => 'Total Tugas Sedang Dikerjakan',
+            'completed' => 'Total Tugas Selesai',
+            default => 'Total Semua Tugas',
+        };
+
+        // Tentukan Warna Grafik berdasarkan status
+        $colors = match ($statusFilter) {
+            'pending' => [
+                'bg' => '#f59e0b', // Amber-500
+                'border' => '#d97706', // Amber-600
+            ],
+            'in_progress' => [
+                'bg' => '#3b82f6', // Blue-500
+                'border' => '#2563eb', // Blue-600
+            ],
+            'completed' => [
+                'bg' => '#10b981', // Emerald-500
+                'border' => '#059669', // Emerald-600
+            ],
+            default => [ // Jika "Semua Status"
+                'bg' => '#6366f1', // Indigo-500
+                'border' => '#4f46e5', // Indigo-600
+            ],
+        };
+
         // Jika sampai sini, berarti Sub Unit SUDAH dipilih.
         // Jalankan query khusus untuk Sub Unit tersebut.
         $employees = User::query()
             ->whereHas('roles', fn($q) => $q->where('name', 'pegawai'))
             ->where('subunit_id', $filters['subunit_id']) // Filter Sub Unit
-            ->withCount(['tasks' => function ($query) use ($startDate, $endDate) {
+            ->withCount(['tasks' => function ($query) use ($startDate, $endDate, $statusFilter) {
+                // Filter Tanggal
                 $query->whereBetween('created_at', [$startDate, $endDate]);
+                
+                // Filter Status (Jika ada)
+                if (! empty($statusFilter)) {
+                    $query->where('status', $statusFilter);
+                }
             }])
             ->orderByDesc('tasks_count')
             ->limit(20)
@@ -136,10 +191,10 @@ class TaskCompletionChart extends ChartWidget
         return [
             'datasets' => [
                 [
-                    'label' => 'Total Tugas Selesai',
+                    'label' => $chartLabel,
                     'data' => $employees->pluck('tasks_count'),
-                    'backgroundColor' => '#3b82f6',
-                    'borderColor' => '#2563eb',
+                    'backgroundColor' => $colors['bg'],
+                    'borderColor' => $colors['border'],
                     'borderWidth' => 1,
                     'borderRadius' => 4,
                     'barThickness' => 30,

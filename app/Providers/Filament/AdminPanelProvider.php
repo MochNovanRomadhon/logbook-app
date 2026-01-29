@@ -32,7 +32,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
 
             // --- KONFIGURASI LOGIN ---
-            ->login()
+            ->login(\App\Filament\Auth\CustomLogin::class)
             ->passwordReset()
             ->profile()
             

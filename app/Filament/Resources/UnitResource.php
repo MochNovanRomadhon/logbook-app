@@ -9,12 +9,18 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 
 class UnitResource extends Resource
 {
     protected static ?string $model = Unit::class;
     protected static ?string $navigationIcon = 'heroicon-o-building-office';
     protected static ?string $navigationGroup = 'Master Data';
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return Auth::user()->hasRole('super_admin');
+    }
 
     public static function form(Form $form): Form
     {

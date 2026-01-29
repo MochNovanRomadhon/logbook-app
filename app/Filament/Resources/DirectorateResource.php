@@ -9,6 +9,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 
 class DirectorateResource extends Resource
 {
@@ -19,6 +20,11 @@ class DirectorateResource extends Resource
     protected static ?string $modelLabel = 'Direktorat';
     protected static ?string $pluralModelLabel = 'Direktorat';
     protected static ?string $navigationLabel = 'Direktorat';
+    
+    public static function shouldRegisterNavigation(): bool
+    {
+        return Auth::user()->hasRole('super_admin');
+    }
     
 
     public static function form(Form $form): Form

@@ -36,14 +36,21 @@ class TaskResource extends Resource
     protected static ?string $pluralModelLabel = 'Daftar Tugas';
     protected static ?string $navigationLabel = 'Daftar Tugas';
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return !Auth::user()->hasRole('super_admin');
+    }
+
     public static function canCreate(): bool
     {
-        return !Auth::user()->hasRole(['super_admin', 'pengawas']);
+        // Allow All (Pegawai & Pengawas, except Super Admin maybe? Or just all)
+        return true; 
     }
 
     public static function form(Form $form): Form
     {
-        $isAdminOrPengawas = Auth::user()->hasRole(['super_admin', 'pengawas']);
+        // Enable fields for everyone (since it's personal task)
+        $isDisabled = false; // Auth::user()->hasRole(['super_admin']); // Optional: Disable for Super Admin if needed
 
         return $form
             ->schema([
@@ -54,7 +61,7 @@ class TaskResource extends Resource
                             ->required()
                             ->maxLength(255)
                             ->columnSpanFull()
-                            ->disabled($isAdminOrPengawas),
+                            ->disabled($isDisabled),
                         
                         Grid::make(2)->schema([
                             Forms\Components\Select::make('urgency')
@@ -65,12 +72,12 @@ class TaskResource extends Resource
                                 ])
                                 ->required()
                                 ->default(2)
-                                ->disabled($isAdminOrPengawas),
+                                ->disabled($isDisabled),
 
                             Forms\Components\DatePicker::make('deadline')
                                 ->label('Tenggat Waktu')
                                 ->required()
-                                ->disabled($isAdminOrPengawas),
+                                ->disabled($isDisabled),
                             
                             Forms\Components\Select::make('status')
                                 ->label('Status')
@@ -81,14 +88,14 @@ class TaskResource extends Resource
                                 ])
                                 ->default('pending')
                                 ->required()
-                                ->disabled($isAdminOrPengawas),
+                                ->disabled($isDisabled),
                         ]),
 
                         Forms\Components\Textarea::make('description')
                             ->label('Deskripsi')
                             ->rows(3)
                             ->columnSpanFull()
-                            ->disabled($isAdminOrPengawas),
+                            ->disabled($isDisabled),
                     ])
             ]);
     }
@@ -96,43 +103,20 @@ class TaskResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            // Setting klik baris memicu View Popup untuk SEMUA user
             ->recordAction(Tables\Actions\ViewAction::class) 
             ->recordUrl(null) 
             
-            ->modifyQueryUsing(function (Builder $query, $livewire) {
-                $query->with(['user.subunit.unit.directorate']);
-
-                if (!Auth::user()->hasRole(['super_admin', 'pengawas'])) {
-                    return $query->where('user_id', Auth::id());
-                }
-
-                $filters = $livewire->tableFilters;
-                $hasSearchFilter = false;
-
-                if ($filters) {
-                    $hasSearchFilter = !empty($filters['user_id']['value']) || 
-                                       !empty($filters['directorate']['value']) || 
-                                       !empty($filters['unit']['value']) || 
-                                       !empty($filters['subunit']['value']);
-                }
-
-                if (!$hasSearchFilter) {
-                    return $query->whereRaw('1 = 0');
-                }
-
-                return $query;
+            // STRICT PERSONAL QUERY
+            ->modifyQueryUsing(function (Builder $query) {
+                return $query->where('user_id', Auth::id());
             })
-            ->emptyStateHeading('Belum ada data ditampilkan')
-            ->emptyStateDescription('Gunakan filter Direktorat, Unit, atau Pegawai untuk menampilkan data.')
-            ->emptyStateIcon('heroicon-o-magnifying-glass')
+            ->emptyStateHeading('Belum ada tugas')
+            ->emptyStateDescription('Buat tugas baru untuk memulai.')
+            ->emptyStateIcon('heroicon-o-clipboard-document-list')
             
             ->columns([
                 Tables\Columns\TextColumn::make('title')->label('Judul')->limit(30),
                 
-                Tables\Columns\TextColumn::make('user.subunit.name')->label('Sub Unit')->sortable()
-                    ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
-
                 Tables\Columns\TextColumn::make('urgency')
                     ->label('Urgensi')
                     ->badge()
@@ -158,34 +142,6 @@ class TaskResource extends Resource
                     ->colors(['gray' => 'pending', 'warning' => 'in_progress', 'success' => 'completed']),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('directorate')
-                    ->label('Direktorat')
-                    ->placeholder('Pilih Direktorat')
-                    ->options(Directorate::pluck('name', 'id'))
-                    ->query(fn (Builder $query, array $data) => $query->when($data['value'], fn ($q, $v) => $q->whereHas('user.subunit.unit', fn ($subQ) => $subQ->where('directorate_id', $v))))
-                    ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
-
-                Tables\Filters\SelectFilter::make('unit')
-                    ->label('Unit')
-                    ->placeholder('Pilih Unit')
-                    ->options(Unit::pluck('name', 'id'))
-                    ->query(fn (Builder $query, array $data) => $query->when($data['value'], fn ($q, $v) => $q->whereHas('user.subunit', fn ($subQ) => $subQ->where('unit_id', $v))))
-                    ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
-
-                Tables\Filters\SelectFilter::make('subunit')
-                    ->label('Sub Unit')
-                    ->placeholder('Pilih Sub Unit')
-                    ->options(Subunit::pluck('name', 'id'))
-                    ->query(fn (Builder $query, array $data) => $query->when($data['value'], fn ($q, $v) => $q->whereHas('user', fn ($subQ) => $subQ->where('subunit_id', $v))))
-                    ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
-
-                Tables\Filters\SelectFilter::make('user_id')
-                    ->label('Pegawai')
-                    ->placeholder('Pilih Pegawai')
-                    ->relationship('user', 'name')
-                    ->searchable()
-                    ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
-                 
                 Tables\Filters\SelectFilter::make('status')
                     ->placeholder('Pilih Status')
                     ->options(['pending'=>'Pending', 'in_progress'=>'Proses', 'completed'=>'Selesai']),
@@ -193,21 +149,17 @@ class TaskResource extends Resource
                 Tables\Filters\SelectFilter::make('urgency')
                     ->placeholder('Pilih Urgensi')
                     ->options([1 => 'Rendah', 2 => 'Normal', 3 => 'Tinggi', 4 => 'Sangat Tinggi', 5 => 'Urgent']),
-
             ], layout: FiltersLayout::AboveContent)
             ->filtersFormColumns(3)
             ->actions([
-                // UPDATE: Hapus 'visible()' agar muncul untuk semua user
                 Tables\Actions\ViewAction::make()
                     ->label('Lihat Detail')
                     ->modalHeading('Rincian Tugas'),
 
                 Tables\Actions\EditAction::make()
-                    ->label('Ubah')
-                    ->visible(fn ($record) => $record->user_id === Auth::id() && !Auth::user()->hasRole(['super_admin', 'pengawas'])),
+                    ->label('Ubah'),
                 
-                Tables\Actions\DeleteAction::make()
-                    ->visible(fn ($record) => $record->user_id === Auth::id() && !Auth::user()->hasRole(['super_admin', 'pengawas'])),
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

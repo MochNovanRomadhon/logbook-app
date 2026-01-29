@@ -33,9 +33,14 @@ class LogbookResource extends Resource
     protected static ?string $navigationGroup = 'Manajemen Tugas';
     protected static ?int $navigationSort = 2;
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return !Auth::user()->hasRole('super_admin');
+    }
+
     public static function canCreate(): bool
     {
-        return !Auth::user()->hasRole(['super_admin', 'pengawas']);
+        return true;
     }
 
     public static function form(Form $form): Form
@@ -125,32 +130,12 @@ class LogbookResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(function (Builder $query, $livewire) {
-                $query->with(['user.subunit.unit.directorate']);
-                
-                if (!Auth::user()->hasRole(['super_admin', 'pengawas'])) {
-                    return $query->where('user_id', Auth::id());
-                }
-
-                $filters = $livewire->tableFilters; 
-                $hasSearchFilter = false;
-
-                if ($filters) {
-                    $hasSearchFilter = !empty($filters['user_id']['value']) || 
-                                       !empty($filters['directorate']['value']) || 
-                                       !empty($filters['unit']['value']) || 
-                                       !empty($filters['subunit']['value']);
-                }
-
-                if (!$hasSearchFilter) {
-                    return $query->whereRaw('1 = 0');
-                }
-
-                return $query;
+            ->modifyQueryUsing(function (Builder $query) {
+                return $query->where('user_id', Auth::id());
             })
-            ->emptyStateHeading('Belum ada data ditampilkan')
-            ->emptyStateDescription('Gunakan filter di atas untuk menampilkan data.')
-            ->emptyStateIcon('heroicon-o-magnifying-glass')
+            ->emptyStateHeading('Belum ada logbook')
+            ->emptyStateDescription('Buat logbook harian Anda sekarang.')
+            ->emptyStateIcon('heroicon-o-book-open')
 
             ->columns([
                 Tables\Columns\TextColumn::make('date')->date('d F Y')->label('Tanggal')->sortable(),
@@ -163,68 +148,9 @@ class LogbookResource extends Resource
                     ->icon(fn (bool $state) => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-pencil'),
 
                 // HAPUS ->searchable() AGAR BAR SEARCH HILANG
-                Tables\Columns\TextColumn::make('user.name')
-                    ->label('Pegawai')
-                    ->sortable()
-                    ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
-
-                Tables\Columns\TextColumn::make('user.subunit.name')->label('Sub Unit')->sortable()->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
-                Tables\Columns\TextColumn::make('user.subunit.unit.name')->label('Unit')->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
-                // ->toggleable(isToggledHiddenByDefault: true),
-                
                 Tables\Columns\TextColumn::make('items_count')->counts('items')->label('Jml Aktivitas')->badge()->color('info')->alignCenter(),
             ])
             ->filters([
-                 Tables\Filters\SelectFilter::make('directorate')
-                 ->label('Direktorat')
-                 ->placeholder('Pilih Direktorat') // <--- GANTI PLACEHOLDER
-                 ->options(Directorate::pluck('name', 'id'))
-                 ->searchable()
-                 ->query(fn (Builder $query, array $data) => 
-                     $query->when($data['value'], fn ($q, $v) => 
-                         $q->whereHas('user.subunit.unit', fn ($subQ) => 
-                             $subQ->where('directorate_id', $v)
-                         )
-                     )
-                 )
-                 ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
-
-                Tables\Filters\SelectFilter::make('unit')
-                    ->label('Unit')
-                    ->placeholder('Pilih Unit') // <--- GANTI PLACEHOLDER
-                    ->options(Unit::pluck('name', 'id'))
-                    ->searchable()
-                    ->query(fn (Builder $query, array $data) => 
-                        $query->when($data['value'], fn ($q, $v) => 
-                            $q->whereHas('user.subunit', fn ($subQ) => 
-                                $subQ->where('unit_id', $v)
-                            )
-                        )
-                    )
-                    ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
-
-                Tables\Filters\SelectFilter::make('subunit')
-                    ->label('Sub Unit')
-                    ->placeholder('Pilih Sub Unit') // <--- GANTI PLACEHOLDER
-                    ->options(Subunit::pluck('name', 'id'))
-                    ->searchable()
-                    ->query(fn (Builder $query, array $data) => 
-                        $query->when($data['value'], fn ($q, $v) => 
-                            $q->whereHas('user', fn ($subQ) => 
-                                $subQ->where('subunit_id', $v)
-                            )
-                        )
-                    )
-                    ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
-
-                Tables\Filters\SelectFilter::make('user_id')
-                    ->label('Cari Pegawai')
-                    ->placeholder('Pilih Pegawai') // <--- GANTI PLACEHOLDER
-                    ->relationship('user', 'name')
-                    ->searchable()
-                    // ->preload()
-                    ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
-
                 Tables\Filters\Filter::make('date_range')
                     ->label('Rentang Tanggal') 
                     ->form([
@@ -241,15 +167,11 @@ class LogbookResource extends Resource
                     ->label('Status')
                     ->placeholder('Pilih Status') // <--- GANTI PLACEHOLDER
                     ->options([0 => 'Draft', 1 => 'Final']),
-
             ], layout: FiltersLayout::AboveContent)
-            ->filtersFormColumns(3) 
+            ->filtersFormColumns(2) 
             ->actions([
-                Tables\Actions\ViewAction::make()
-                    ->visible(fn () => Auth::user()->hasRole(['super_admin', 'pengawas'])), // Admin: View Only
-
-                Tables\Actions\EditAction::make()
-                    ->visible(fn ($record) => $record->user_id === Auth::id() && !Auth::user()->hasRole(['super_admin', 'pengawas'])), // Pegawai: Edit
+                Tables\Actions\ViewAction::make(),
+                Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
