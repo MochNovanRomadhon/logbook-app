@@ -18,8 +18,15 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // *** PENTING: Reset cache permission Spatie sebelum seeding ***
-        // Tanpa ini, role yang baru dibuat tidak akan terdeteksi sampai cache expire
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
+
+        // 1. Generate semua permission dari Filament Shield (WAJIB)
+        //    Tanpa ini, menu tidak akan muncul meskipun role sudah dibuat
+        \Artisan::call('shield:generate', [
+            '--all'     => true,
+            '--minimal' => true,
+            '--panel'   => 'admin',
+        ]);
 
         // 1. Create Roles (dengan guard_name eksplisit)
         $roleSuperAdmin = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
