@@ -78,7 +78,7 @@ class UserResource extends Resource
                 ->visible(function (Get $get) {
                     $roleId = $get('roles'); 
                     if (blank($roleId)) return false;
-                    return Role::where('id', $roleId)->where('name', 'Pegawai')->exists();
+                    return Role::where('id', $roleId)->where('name', 'pegawai')->exists();
                 })
                 ->schema([
                     Forms\Components\Select::make('directorate_id')

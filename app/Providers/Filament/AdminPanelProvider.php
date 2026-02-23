@@ -29,7 +29,7 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->default()
             ->id('admin')
-            ->path('admin')
+            ->path('app')
 
             // --- KONFIGURASI LOGIN ---
             ->login(\App\Filament\Auth\CustomLogin::class)

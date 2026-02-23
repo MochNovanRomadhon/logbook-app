@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return redirect('/admin'); // Opsional: Arahkan halaman depan langsung ke admin
+    return view('welcome');
 });
 
 // --- TAMBAHKAN INI UNTUK MEMPERBAIKI ERROR ---
