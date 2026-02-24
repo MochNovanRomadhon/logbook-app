@@ -35,12 +35,18 @@ class LogbookResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return !Auth::user()->hasRole('super_admin');
+        return Auth::user()->can('view_any_logbook')
+            && !Auth::user()->hasRole('super_admin');
+    }
+
+    public static function canViewAny(): bool
+    {
+        return Auth::user()->can('view_any_logbook');
     }
 
     public static function canCreate(): bool
     {
-        return true;
+        return Auth::user()->can('create_logbook');
     }
 
     public static function form(Form $form): Form

@@ -28,19 +28,55 @@ use Filament\Tables\Enums\FiltersLayout;
 class MonitoringLogbookResource extends Resource
 {
     protected static ?string $model = Logbook::class;
+    protected static ?string $slug = 'monitoring-logbook';
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
     protected static ?string $navigationLabel = 'Monitoring Logbook';
     protected static ?string $navigationGroup = 'Monitoring';
     protected static ?int $navigationSort = 2;
 
+    public static function getModelLabel(): string
+    {
+        return 'Monitoring Logbook';
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return 'Monitoring Logbook';
+    }
+
     public static function shouldRegisterNavigation(): bool
     {
-        return Auth::user()->hasRole(['super_admin', 'pengawas']);
+        return Auth::user()->can('view_any_monitoring::logbook')
+            || Auth::user()->hasRole(['super_admin', 'pengawas']);
+    }
+
+    public static function canViewAny(): bool
+    {
+        return Auth::user()->can('view_any_monitoring::logbook')
+            || Auth::user()->hasRole(['super_admin', 'pengawas']);
+    }
+
+    public static function canView($record): bool
+    {
+        return Auth::user()->can('view_monitoring::logbook')
+            || Auth::user()->hasRole(['super_admin', 'pengawas']);
     }
 
     public static function canCreate(): bool
     {
         return false;
+    }
+
+    public static function canEdit($record): bool
+    {
+        return Auth::user()->can('update_monitoring::logbook')
+            || Auth::user()->hasRole(['super_admin', 'pengawas']);
+    }
+
+    public static function canDelete($record): bool
+    {
+        return Auth::user()->can('delete_monitoring::logbook')
+            || Auth::user()->hasRole(['super_admin', 'pengawas']);
     }
 
     public static function form(Form $form): Form
