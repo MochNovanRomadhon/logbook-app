@@ -4,26 +4,46 @@
        (Diambil dari style lengkap dengan tombol)
        ========================================= */
 
-    /* 1. Memberi Batas (Border) & Warna pada Sidebar */
+    /* 1. Memberi Batas (Border) & Warna pada Sidebar — Light Mode Only */
     aside.fi-sidebar {
         background-color: #fdfdfd !important;
         box-shadow: 4px 0 24px rgba(0,0,0,0.02);
     }
+    /* Dark mode: biarkan Filament yang menangani warna bawaannya */
+    .dark aside.fi-sidebar {
+        background-color: unset !important;
+        box-shadow: none;
+    }
 
-    /* 2. Memperbaiki Header Sidebar */
+    /* 2. Memperbaiki Header Sidebar — Light Mode Only */
     .fi-sidebar-header {
-        border-bottom: 1px solid #f3f4f6;
+        /* border-bottom: 1px solid #f3f4f6; */
         background-color: white;
+    }
+    /* Dark mode: samakan dengan header body (topbar) */
+    .dark .fi-sidebar-header {
+        /* border-bottom: 0.5px solid rgba(255,255,255,0.06); */
+        background-color: #18181B !important; /* hitam seperti topbar */
     }
 
     /* 3. Styling Tombol Collapse (Panah Buka/Tutup) */
     .fi-sidebar-header button {
         background-color: #f3f4f6;
-        border-radius: 8px;
+        border-radius: 5px;
         margin-left: auto; /* Dorong ke kanan */
+    }
+    /* Dark mode: tombol hitam dengan ikon putih */
+    .dark .fi-sidebar-header button {
+        background-color: #18181B !important;
+        color: #ffffff;
+        border: 1px solid rgba(255,255,255,0.1);
     }
     .fi-sidebar-header button:hover {
         background-color: #05b9ad; /* Warna Primary (Tosca) */
+        color: white;
+    }
+    .dark .fi-sidebar-header button:hover {
+        background-color: #05b9ad !important;
         color: white;
     }
 

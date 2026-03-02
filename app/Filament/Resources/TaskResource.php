@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\TaskResource\Pages;
 use App\Models\Task;
+use App\Models\User;
 use App\Models\Directorate;
 use App\Models\Unit;
 use App\Models\Subunit;
@@ -56,6 +57,23 @@ class TaskResource extends Resource
             ->schema([
                 Section::make()
                     ->schema([
+                        Forms\Components\Select::make('user_id')
+                            ->label('Pilih Pegawai')
+                            ->options(function () {
+                                $currentUser = Auth::user();
+                                return User::query()
+                                    ->where(function ($q) use ($currentUser) {
+                                        $q->whereHas('roles', fn($r) => $r->where('name', 'pegawai'))
+                                          ->orWhere('id', $currentUser->id);
+                                    })
+                                    ->where('is_active', true)
+                                    ->pluck('name', 'id');
+                            })
+                            ->searchable()
+                            ->required()
+                            ->visible(fn () => Auth::user()->hasRole('pengawas'))
+                            ->columnSpanFull(),
+
                         Forms\Components\TextInput::make('title')
                             ->label('Judul Tugas')
                             ->required()
@@ -120,12 +138,13 @@ class TaskResource extends Resource
                 Tables\Columns\TextColumn::make('urgency')
                     ->label('Urgensi')
                     ->badge()
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        '1' => 'Rendah', '2' => 'Normal', '3' => 'Tinggi', 
-                        '4' => 'Sangat Tinggi', '5' => 'Urgent', default => $state,
-                    })
                     ->color(fn (string $state): string => match ($state) {
-                        '1' => 'gray', '2' => 'info', '3' => 'warning', '4', '5' => 'danger', default => 'gray',
+                        '1' => '#10b981',
+                        '2' => '#3b82f6',
+                        '3' => '#f59e0b',
+                        '4' => '#f97316',
+                        '5' => '#ef4444',
+                        default => 'gray',
                     }),
                  
                 Tables\Columns\TextColumn::make('deadline')->date('d M Y')->sortable()

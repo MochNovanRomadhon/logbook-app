@@ -14,7 +14,14 @@ class CreateTask extends CreateRecord
     // 1. SOLUSI SQL ERROR (User ID)
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $data['user_id'] = Auth::id();
+        $user = Auth::user();
+        if ($user->hasRole('pengawas') && !empty($data['user_id'])) {
+            // Pengawas menugaskan ke pegawai yang dipilih
+            $data['assigned_by'] = $user->id;
+        } else {
+            // Pegawai membuat tugas untuk diri sendiri
+            $data['user_id'] = $user->id;
+        }
         return $data;
     }
 
