@@ -37,15 +37,7 @@ class EditTask extends EditRecord
             
             // PENTING: Panggil fungsi save bawaan Filament
             ->action(fn () => $this->save()) 
-            
-            // --- Konfigurasi Popup ---
-            ->requiresConfirmation()
-            ->modalHeading('Update Data')
-            ->modalDescription('Apakah Anda yakin ingin menyimpan perubahan ini?')
-            ->modalSubmitActionLabel('Ya, Update')
-            ->modalCancelActionLabel('Batal')
-            ->modalIcon('heroicon-o-pencil-square')
-            ->modalIconColor('warning') // Warna kuning (warning) karena ini edit
+
             
             ->keyBindings(['mod+s']);
     }

@@ -10,6 +10,29 @@ class EditSubunit extends EditRecord
 {
     protected static string $resource = SubunitResource::class;
 
+    protected function beforeSave(): void
+    {
+        $name = $this->data['name'];
+        $unitId = $this->data['unit_id'];
+        
+        $existing = \App\Models\Subunit::whereRaw('LOWER(name) = ?', [strtolower($name)])
+            ->where('unit_id', $unitId)
+            ->where('id', '!=', $this->record->id)
+            ->first();
+
+        if ($existing) {
+            $status = $existing->is_active ? 'Aktif' : 'Tidak Aktif';
+            \Filament\Notifications\Notification::make()
+                ->danger()
+                ->title('Gagal Menyimpan')
+                ->body("{$name} sudah tersimpan pada Unit ini dengan status {$status}.")
+                ->persistent()
+                ->send();
+
+            throw new \Filament\Support\Exceptions\Halt();
+        }
+    }
+
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('index');
@@ -27,13 +50,6 @@ class EditSubunit extends EditRecord
             ->icon('heroicon-m-check')
             ->color('primary')
             ->action(fn () => $this->save())
-            ->requiresConfirmation()
-            ->modalHeading('Update Data')
-            ->modalDescription('Apakah Anda yakin ingin menyimpan perubahan ini?')
-            ->modalSubmitActionLabel('Ya, Update')
-            ->modalCancelActionLabel('Batal')
-            ->modalIcon('heroicon-o-pencil-square')
-            ->modalIconColor('warning')
             ->keyBindings(['mod+s']);
     }
 }

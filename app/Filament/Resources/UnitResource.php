@@ -45,7 +45,19 @@ class UnitResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('directorate.name')->label('Direktorat')->sortable(),
                 Tables\Columns\TextColumn::make('name')->label('Unit')->searchable()->sortable(),
-                Tables\Columns\IconColumn::make('is_active')->boolean()->label('Status'),
+                Tables\Columns\TextColumn::make('is_active')
+                    ->label('Status')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Aktif' : 'Tidak Aktif')
+                    ->color(fn ($state) => $state ? 'success' : 'danger'),
+            ])
+            ->filters([
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Status Aktif')
+                    ->boolean()
+                    ->trueLabel('Aktif')
+                    ->falseLabel('Tidak Aktif')
+                    ->native(false),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

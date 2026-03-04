@@ -10,6 +10,28 @@ class CreateUnit extends CreateRecord
 {
     protected static string $resource = UnitResource::class;
 
+    protected function beforeCreate(): void
+    {
+        $name = $this->data['name'];
+        $directorateId = $this->data['directorate_id'];
+        
+        $existing = \App\Models\Unit::whereRaw('LOWER(name) = ?', [strtolower($name)])
+            ->where('directorate_id', $directorateId)
+            ->first();
+
+        if ($existing) {
+            $status = $existing->is_active ? 'Aktif' : 'Tidak Aktif';
+            \Filament\Notifications\Notification::make()
+                ->danger()
+                ->title('Gagal Menyimpan')
+                ->body("{$name} sudah tersimpan pada Direktorat ini dengan status {$status}.")
+                ->persistent()
+                ->send();
+
+            throw new \Filament\Support\Exceptions\Halt();
+        }
+    }
+
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('index');
@@ -27,13 +49,6 @@ class CreateUnit extends CreateRecord
             ->icon('heroicon-m-check')
             ->color('primary')
             ->action(fn () => $this->create())
-            ->requiresConfirmation()
-            ->modalHeading('Simpan Data Baru')
-            ->modalDescription('Apakah Anda yakin data yang dimasukkan sudah benar?')
-            ->modalSubmitActionLabel('Ya, Simpan')
-            ->modalCancelActionLabel('Batal')
-            ->modalIcon('heroicon-o-check-circle')
-            ->modalIconColor('success')
             ->keyBindings(['mod+s']);
     }
 }

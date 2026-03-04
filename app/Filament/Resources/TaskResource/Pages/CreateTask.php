@@ -61,17 +61,7 @@ class CreateTask extends CreateRecord
             ->label('Simpan Data')
             ->icon('heroicon-m-check')
             ->color('primary')
-            ->action(fn () => $this->create()) 
-            
-            // Konfigurasi Popup
-            ->requiresConfirmation()
-            ->modalHeading('Simpan Data Baru')
-            ->modalDescription('Apakah Anda yakin data yang dimasukkan sudah benar?')
-            ->modalSubmitActionLabel('Ya, Simpan')
-            ->modalCancelActionLabel('Batal')
-            ->modalIcon('heroicon-o-check-circle')
-            ->modalIconColor('success')
-            
+            ->action(fn () => $this->create())
             ->keyBindings(['mod+s']);
     }
 }

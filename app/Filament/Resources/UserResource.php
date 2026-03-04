@@ -140,11 +140,14 @@ class UserResource extends Resource
                     ->label('Sub Unit')
                     ->sortable(),
 
-                Tables\Columns\IconColumn::make('is_active')
-                    ->label('Aktif')
-                    ->boolean(),
+                Tables\Columns\TextColumn::make('is_active')
+                    ->label('Status')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Aktif' : 'Tidak Aktif')
+                    ->color(fn ($state) => $state ? 'success' : 'danger'),
                 
                 Tables\Columns\TextColumn::make('created_at')
+                    ->label('Dibuat Pada')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -153,6 +156,12 @@ class UserResource extends Resource
                 // Filter berdasarkan Role
                 Tables\Filters\SelectFilter::make('roles')
                     ->relationship('roles', 'name'),
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Status Aktif')
+                    ->boolean()
+                    ->trueLabel('Aktif')
+                    ->falseLabel('Tidak Aktif')
+                    ->native(false),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

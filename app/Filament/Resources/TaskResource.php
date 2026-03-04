@@ -102,7 +102,7 @@ class TaskResource extends Resource
                             Forms\Components\Select::make('status')
                                 ->label('Status')
                                 ->options([
-                                    'pending' => 'Pending',
+                                    'pending' => 'Belum',
                                     'in_progress' => 'Sedang Dikerjakan',
                                     'completed' => 'Selesai'
                                 ])

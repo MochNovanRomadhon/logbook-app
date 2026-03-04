@@ -10,6 +10,8 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 
 class SubunitResource extends Resource
 {
@@ -27,9 +29,18 @@ class SubunitResource extends Resource
     {
         return $form
             ->schema([
+                Forms\Components\Select::make('directorate_id')
+                    ->label('Induk Direktorat')
+                    ->options(\App\Models\Directorate::pluck('name', 'id'))
+                    ->live()
+                    ->searchable()
+                    ->preload()
+                    ->afterStateUpdated(fn (Set $set) => $set('unit_id', null))
+                    ->dehydrated(false)
+                    ->required(),
                 Forms\Components\Select::make('unit_id')
-                    ->relationship('unit', 'name')
                     ->label('Induk Unit')
+                    ->options(fn (Get $get) => \App\Models\Unit::where('directorate_id', $get('directorate_id'))->pluck('name', 'id'))
                     ->searchable()
                     ->preload()
                     ->required(),
@@ -42,9 +53,22 @@ class SubunitResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('unit.directorate.name')->label('Direktorat')->sortable(),
                 Tables\Columns\TextColumn::make('unit.name')->label('Unit')->sortable(),
                 Tables\Columns\TextColumn::make('name')->label('Sub Unit')->searchable(),
-                Tables\Columns\IconColumn::make('is_active')->boolean()->label('Status'),
+                Tables\Columns\TextColumn::make('is_active')
+                    ->label('Status')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ? 'Aktif' : 'Tidak Aktif')
+                    ->color(fn ($state) => $state ? 'success' : 'danger'),
+            ])
+            ->filters([
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Status Aktif')
+                    ->boolean()
+                    ->trueLabel('Aktif')
+                    ->falseLabel('Tidak Aktif')
+                    ->native(false),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

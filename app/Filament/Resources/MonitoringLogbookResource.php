@@ -179,9 +179,9 @@ public static function table(Table $table): Table
             // Cek apakah ada filter yang terisi (termasuk dummy trigger)
             if ($filters) {
                 $hasSearchFilter = !empty($filters['user_id']['value']) || 
-                                   !empty($filters['directorate']['value']) || 
-                                   !empty($filters['unit']['value']) || 
-                                   !empty($filters['subunit']['value']);
+                                   !empty($filters['location']['directorate_id']) || 
+                                   !empty($filters['location']['unit_id']) || 
+                                   !empty($filters['location']['subunit_id']);
             }
 
             if (!$hasSearchFilter) {
