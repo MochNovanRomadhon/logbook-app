@@ -35,8 +35,8 @@ class Dashboard extends BaseDashboard
 {
     use HasFiltersForm;
 
-    protected static ?string $navigationLabel = 'Dasbor';
-    protected static ?string $title = 'Dasbor';
+    protected static ?string $navigationLabel = 'Dashboard';
+    protected static ?string $title = 'Dashboard';
 
     public ?array $data = [];
     public bool $hasSearched = false;

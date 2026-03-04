@@ -126,7 +126,7 @@
             <div class="text-center max-w-4xl mx-auto">
                 <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-slate-200 shadow-sm mb-8 opacity-0 animate-fade-in-up">
                     <span class="flex h-2 w-2 rounded-full bg-teal-500"></span>
-                    <span class="text-xs font-semibold text-slate-600 tracking-wide uppercase">Sistem Manajemen Terpadu v2.0</span>
+                    <span class="text-xs font-semibold text-slate-600 tracking-wide uppercase">Sistem Manajemen Terpadu</span>
                 </div>
                 
                 <h1 class="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-slate-900 mb-6 opacity-0 animate-fade-in-up delay-100 leading-[1.1]">

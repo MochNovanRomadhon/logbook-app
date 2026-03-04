@@ -57,7 +57,7 @@ class TaskResource extends Resource
             ->schema([
                 Section::make()
                     ->schema([
-                        Forms\Components\Select::make('user_id')
+                        Forms\Components\Select::make('user_ids')
                             ->label('Pilih Pegawai')
                             ->options(function () {
                                 $currentUser = Auth::user();
@@ -69,7 +69,9 @@ class TaskResource extends Resource
                                     ->where('is_active', true)
                                     ->pluck('name', 'id');
                             })
+                            ->multiple()
                             ->searchable()
+                            ->preload()
                             ->required()
                             ->visible(fn () => Auth::user()->hasRole('pengawas'))
                             ->columnSpanFull(),

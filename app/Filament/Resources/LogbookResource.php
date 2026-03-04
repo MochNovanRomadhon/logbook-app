@@ -177,7 +177,8 @@ class LogbookResource extends Resource
             ->filtersFormColumns(2) 
             ->actions([
                 Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->visible(fn ($record) => !$record->is_submitted),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
