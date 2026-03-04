@@ -215,33 +215,36 @@ public static function table(Table $table): Table
             Tables\Columns\TextColumn::make('items_count')->counts('items')->label('Jml Aktivitas')->badge()->color('info')->alignCenter(),
         ])
         ->filters([
-            // --- BARIS 1 (3 Kolom @ 4 Grid) ---
-            Tables\Filters\SelectFilter::make('directorate')
-                ->label('Direktorat')
-                ->placeholder('Pilih Direktorat')
-                ->options(Directorate::pluck('name', 'id'))
-                ->searchable()
-                ->query(fn (Builder $query, array $data) => $query->when($data['value'], fn ($q, $v) => $q->whereHas('user.subunit.unit', fn ($subQ) => $subQ->where('directorate_id', $v))))
+            // --- LOKASI KASCADING ---
+            Tables\Filters\Filter::make('location')
+                ->form([
+                    \Filament\Forms\Components\Grid::make(3)->schema([
+                        \Filament\Forms\Components\Select::make('directorate_id')
+                            ->label('Direktorat')
+                            ->placeholder('Pilih Direktorat')
+                            ->options(Directorate::pluck('name', 'id'))
+                            ->live()
+                            ->afterStateUpdated(fn (\Filament\Forms\Set $set) => $set('unit_id', null)),
+                        \Filament\Forms\Components\Select::make('unit_id')
+                            ->label('Unit')
+                            ->placeholder('Pilih Unit')
+                            ->options(fn (\Filament\Forms\Get $get) => Unit::where('directorate_id', $get('directorate_id'))->pluck('name', 'id'))
+                            ->live()
+                            ->afterStateUpdated(fn (\Filament\Forms\Set $set) => $set('subunit_id', null)),
+                        \Filament\Forms\Components\Select::make('subunit_id')
+                            ->label('Sub Unit')
+                            ->placeholder('Pilih Sub Unit')
+                            ->options(fn (\Filament\Forms\Get $get) => Subunit::where('unit_id', $get('unit_id'))->pluck('name', 'id')),
+                    ])
+                ])
+                ->query(function (Builder $query, array $data): Builder {
+                    return $query
+                        ->when($data['directorate_id'], fn ($q, $v) => $q->whereHas('user.subunit.unit', fn ($subQ) => $subQ->where('directorate_id', $v)))
+                        ->when($data['unit_id'], fn ($q, $v) => $q->whereHas('user.subunit', fn ($subQ) => $subQ->where('unit_id', $v)))
+                        ->when($data['subunit_id'], fn ($q, $v) => $q->whereHas('user', fn ($subQ) => $subQ->where('subunit_id', $v)));
+                })
                 ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas']))
-                ->columnSpan(4), 
-
-            Tables\Filters\SelectFilter::make('unit')
-                ->label('Unit')
-                ->placeholder('Pilih Unit')
-                ->options(Unit::pluck('name', 'id'))
-                ->searchable()
-                ->query(fn (Builder $query, array $data) => $query->when($data['value'], fn ($q, $v) => $q->whereHas('user.subunit', fn ($subQ) => $subQ->where('unit_id', $v))))
-                ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas']))
-                ->columnSpan(4),
-
-            Tables\Filters\SelectFilter::make('subunit')
-                ->label('Sub Unit')
-                ->placeholder('Pilih Sub Unit')
-                ->options(Subunit::pluck('name', 'id'))
-                ->searchable()
-                ->query(fn (Builder $query, array $data) => $query->when($data['value'], fn ($q, $v) => $q->whereHas('user', fn ($subQ) => $subQ->where('subunit_id', $v))))
-                ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas']))
-                ->columnSpan(4), 
+                ->columnSpan(12),
 
             // --- BARIS 2 (3 Kolom Input + 1 Kolom Tombol) ---
             Tables\Filters\SelectFilter::make('user_id')
