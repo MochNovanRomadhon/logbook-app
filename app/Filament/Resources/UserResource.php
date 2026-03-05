@@ -62,11 +62,22 @@ class UserResource extends Resource
                         ->password()
                         ->revealable()
                         ->extraInputAttributes(['autocomplete' => 'new-password'])
-                        ->rule(Password::min(8)
-                            ->mixedCase()
-                            ->numbers()
-                            ->symbols()
-                        )
+                        ->rule(function () {
+                            return function (string $attribute, $value, \Closure $fail) {
+                                if (strlen($value) < 8) {
+                                    $fail('Password minimal 8 karakter.');
+                                }
+                                if (!preg_match('/[A-Z]/', $value) || !preg_match('/[a-z]/', $value)) {
+                                    $fail('Password harus mengandung huruf besar dan huruf kecil.');
+                                }
+                                if (!preg_match('/[0-9]/', $value)) {
+                                    $fail('Password harus mengandung angka.');
+                                }
+                                if (!preg_match('/[^a-zA-Z0-9]/', $value)) {
+                                    $fail('Password harus mengandung simbol.');
+                                }
+                            };
+                        })
                         ->validationAttribute('password')
                         ->dehydrated(fn ($state) => filled($state))
                         ->required(fn (string $context): bool => $context === 'create')
