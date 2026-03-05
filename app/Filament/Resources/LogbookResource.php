@@ -83,71 +83,46 @@ class LogbookResource extends Resource
                                     ->itemLabel(fn (array $state): ?string => $state['activity'] ?? null)
                                     ->collapsed(false) 
                                     ->schema([
-                                        Grid::make(1)->schema([
-                                            Forms\Components\Radio::make('is_custom_task')
-                                                ->label('Kategori Pekerjaan')
-                                                ->options([
-                                                    false => 'Tugas Utama (Dari Atasan)',
-                                                    true => 'Pekerjaan Lainnya / Dadakan'
-                                                ])
-                                                ->default(false)
-                                                ->inline()
-                                                ->live()
-                                                ->dehydrated(false)
-                                                ->afterStateHydrated(function (Forms\Components\Radio $component, $state, ?\Illuminate\Database\Eloquent\Model $record) {
-                                                    if ($record && $record->custom_task_name) {
-                                                        $component->state(true);
-                                                    } else {
-                                                        $component->state(false);
-                                                    }
-                                                }),
-                                        ]),
-
                                         Grid::make(2)->schema([
                                             Select::make('task_id')
                                                 ->label('Pilih Tugas')
-                                                ->relationship(
-                                                    name: 'task', 
-                                                    titleAttribute: 'title',
-                                                    modifyQueryUsing: fn (Builder $query) => $query
-                                                        ->where('user_id', Auth::id())
+                                                ->options(function () {
+                                                    $tasks = \App\Models\Task::whereHas('users', fn ($q) => $q->where('users.id', Auth::id()))
                                                         ->where('status', '!=', 'completed')
-                                                )
+                                                        ->pluck('title', 'id')
+                                                        ->toArray();
+                                                    return array_merge(['other' => '— Pekerjaan Lainnya —'], $tasks);
+                                                })
                                                 ->searchable()
                                                 ->preload()
-                                                ->required(fn (Forms\Get $get) => !$get('is_custom_task'))
-                                                ->visible(fn (Forms\Get $get) => !$get('is_custom_task'))
-                                                ->reactive()
+                                                ->required()
+                                                ->live()
                                                 ->afterStateUpdated(function ($state, callable $set) {
-                                                    if ($state) {
+                                                    if ($state && $state !== 'other') {
                                                         $lastLog = \App\Models\LogbookItem::where('task_id', $state)->latest()->first();
                                                         $set('previous_progress', $lastLog ? $lastLog->current_progress : 0);
+                                                    } else {
+                                                        $set('previous_progress', null);
+                                                        $set('current_progress', null);
                                                     }
                                                 })
                                                 ->columnSpanFull(), 
-
-                                            TextInput::make('custom_task_name')
-                                                ->label('Nama Pekerjaan Lainnya')
-                                                ->placeholder('Tuliskan pekerjaan mendadak yang Anda lakukan...')
-                                                ->required(fn (Forms\Get $get) => $get('is_custom_task') == true)
-                                                ->visible(fn (Forms\Get $get) => $get('is_custom_task') == true)
-                                                ->columnSpanFull(),
 
                                             TextInput::make('previous_progress')
                                                 ->label('Progress Awal (%)')
                                                 ->numeric()
                                                 ->default(0)
                                                 ->readOnly()
-                                                ->visible(fn (Forms\Get $get) => !$get('is_custom_task'))
-                                                ->suffix('%'),
+                                                ->suffix('%')
+                                                ->hidden(fn (\Filament\Forms\Get $get) => $get('task_id') === 'other'),
 
                                             TextInput::make('current_progress')
                                                 ->label('Progress Akhir (%)')
                                                 ->numeric()
-                                                ->required(fn (Forms\Get $get) => !$get('is_custom_task'))
-                                                ->visible(fn (Forms\Get $get) => !$get('is_custom_task'))
+                                                ->required(fn (\Filament\Forms\Get $get) => $get('task_id') !== 'other')
                                                 ->maxValue(100)
-                                                ->suffix('%'),
+                                                ->suffix('%')
+                                                ->hidden(fn (\Filament\Forms\Get $get) => $get('task_id') === 'other'),
 
                                             Textarea::make('activity')
                                                 ->label('Deskripsi Aktivitas')
