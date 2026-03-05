@@ -113,6 +113,26 @@ class MonitoringLogbookResource extends Resource
                                     ->itemLabel(fn (array $state): ?string => $state['activity'] ?? null)
                                     ->collapsed(false) 
                                     ->schema([
+                                        Grid::make(1)->schema([
+                                            Forms\Components\Radio::make('is_custom_task')
+                                                ->label('Kategori Pekerjaan')
+                                                ->options([
+                                                    false => 'Tugas Utama (Dari Atasan)',
+                                                    true => 'Pekerjaan Lainnya / Dadakan'
+                                                ])
+                                                ->default(false)
+                                                ->inline()
+                                                ->live()
+                                                ->dehydrated(false)
+                                                ->afterStateHydrated(function (Forms\Components\Radio $component, $state, ?\Illuminate\Database\Eloquent\Model $record) {
+                                                    if ($record && $record->custom_task_name) {
+                                                        $component->state(true);
+                                                    } else {
+                                                        $component->state(false);
+                                                    }
+                                                }),
+                                        ]),
+
                                         Grid::make(2)->schema([
                                             Select::make('task_id')
                                                 ->label('Pilih Tugas')
@@ -125,7 +145,8 @@ class MonitoringLogbookResource extends Resource
                                                 )
                                                 ->searchable()
                                                 ->preload()
-                                                ->required()
+                                                ->required(fn (Forms\Get $get) => !$get('is_custom_task'))
+                                                ->visible(fn (Forms\Get $get) => !$get('is_custom_task'))
                                                 ->reactive()
                                                 ->afterStateUpdated(function ($state, callable $set) {
                                                     if ($state) {
@@ -135,17 +156,25 @@ class MonitoringLogbookResource extends Resource
                                                 })
                                                 ->columnSpanFull(), 
 
+                                            TextInput::make('custom_task_name')
+                                                ->label('Nama Pekerjaan Lainnya')
+                                                ->required(fn (Forms\Get $get) => $get('is_custom_task') == true)
+                                                ->visible(fn (Forms\Get $get) => $get('is_custom_task') == true)
+                                                ->columnSpanFull(),
+
                                             TextInput::make('previous_progress')
                                                 ->label('Progress Awal (%)')
                                                 ->numeric()
                                                 ->default(0)
                                                 ->readOnly()
+                                                ->visible(fn (Forms\Get $get) => !$get('is_custom_task'))
                                                 ->suffix('%'),
 
                                             TextInput::make('current_progress')
                                                 ->label('Progress Akhir (%)')
                                                 ->numeric()
-                                                ->required()
+                                                ->required(fn (Forms\Get $get) => !$get('is_custom_task'))
+                                                ->visible(fn (Forms\Get $get) => !$get('is_custom_task'))
                                                 ->maxValue(100)
                                                 ->suffix('%'),
 
