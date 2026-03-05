@@ -87,7 +87,7 @@ class LogbookResource extends Resource
                                             Select::make('task_id')
                                                 ->label('Pilih Tugas')
                                                 ->options(function () {
-                                                    $tasks = \App\Models\Task::whereHas('users', fn ($q) => $q->where('users.id', Auth::id()))
+                                                    $tasks = \App\Models\Task::where('user_id', Auth::id())
                                                         ->where('status', '!=', 'completed')
                                                         ->pluck('title', 'id')
                                                         ->toArray();

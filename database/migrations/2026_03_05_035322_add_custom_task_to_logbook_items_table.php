@@ -12,9 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('logbook_items', function (Blueprint $table) {
-            $table->foreignId('task_id')->nullable()->change();
-            $table->integer('current_progress')->nullable()->change();
-            $table->string('custom_task_name')->nullable()->after('task_id');
+            //
         });
     }
 
@@ -24,9 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('logbook_items', function (Blueprint $table) {
-            $table->foreignId('task_id')->nullable(false)->change();
-            $table->integer('current_progress')->nullable(false)->change();
-            $table->dropColumn('custom_task_name');
+            //
         });
     }
 };
