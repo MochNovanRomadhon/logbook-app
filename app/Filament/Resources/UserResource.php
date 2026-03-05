@@ -35,12 +35,15 @@ class UserResource extends Resource
                     Forms\Components\TextInput::make('name')
                         ->label('Nama Lengkap')
                         ->required()
+                        ->validationMessages(['required' => 'Wajib diisi.'])
                         ->maxLength(255),
                     
                     // --- UPDATE 1: VALIDASI EMAIL ---
                     Forms\Components\TextInput::make('email')
                         ->email() // Wajib format email (ada @ dan .)
                         ->required()
+                        ->validationMessages(['required' => 'Wajib diisi.'])
+                        ->extraInputAttributes(['autocomplete' => 'new-password'])
                         ->maxLength(255),
 
                     // Role (Single Select)
@@ -50,6 +53,7 @@ class UserResource extends Resource
                         ->preload()
                         ->searchable()
                         ->required()
+                        ->validationMessages(['required' => 'Wajib diisi.'])
                         ->live()
                         ->afterStateUpdated(fn (Set $set) => $set('directorate_id', null)),
 
@@ -57,14 +61,17 @@ class UserResource extends Resource
                     Forms\Components\TextInput::make('password')
                         ->password()
                         ->revealable()
+                        ->extraInputAttributes(['autocomplete' => 'new-password'])
                         ->rule(Password::min(8)
                             ->mixedCase()
                             ->numbers()
+                            ->symbols()
                         )
                         ->validationAttribute('password')
                         ->dehydrated(fn ($state) => filled($state))
                         ->required(fn (string $context): bool => $context === 'create')
-                        ->helperText('Minimal 8 karakter, harus mengandung huruf besar & angka. Kosongkan jika tidak ingin mengubah.'),
+                        ->validationMessages(['required' => 'Wajib diisi.'])
+                        ->helperText('Minimal 8 karakter, harus mengandung huruf besar, angka & simbol.'),
 
                     Forms\Components\Toggle::make('is_active')
                         ->label('Status Aktif')
@@ -77,7 +84,7 @@ class UserResource extends Resource
                 ->visible(function (Get $get) {
                     $roleId = $get('roles'); 
                     if (blank($roleId)) return false;
-                    return Role::where('id', $roleId)->where('name', 'pegawai')->exists();
+                    return Role::where('id', $roleId)->whereIn('name', ['pegawai', 'pengawas'])->exists();
                 })
                 ->schema([
                     Forms\Components\Select::make('directorate_id')
@@ -86,7 +93,12 @@ class UserResource extends Resource
                         ->preload()
                         ->live()
                         ->afterStateUpdated(fn (Set $set) => $set('unit_id', null))
-                        ->required(), 
+                        ->required(function (Get $get) {
+                            $roleId = $get('roles');
+                            if (blank($roleId)) return false;
+                            return Role::where('id', $roleId)->where('name', 'pegawai')->exists();
+                        })
+                        ->validationMessages(['required' => 'Wajib diisi.']), 
 
                     Forms\Components\Select::make('unit_id')
                         ->options(fn (Get $get) => 
@@ -96,7 +108,12 @@ class UserResource extends Resource
                         ->preload()
                         ->live()
                         ->afterStateUpdated(fn (Set $set) => $set('subunit_id', null))
-                        ->required(),
+                        ->required(function (Get $get) {
+                            $roleId = $get('roles');
+                            if (blank($roleId)) return false;
+                            return Role::where('id', $roleId)->where('name', 'pegawai')->exists();
+                        })
+                        ->validationMessages(['required' => 'Wajib diisi.']),
 
                     Forms\Components\Select::make('subunit_id')
                         ->options(fn (Get $get) => 
@@ -104,7 +121,12 @@ class UserResource extends Resource
                         )
                         ->searchable()
                         ->preload()
-                        ->required(),
+                        ->required(function (Get $get) {
+                            $roleId = $get('roles');
+                            if (blank($roleId)) return false;
+                            return Role::where('id', $roleId)->where('name', 'pegawai')->exists();
+                        })
+                        ->validationMessages(['required' => 'Wajib diisi.']),
                 ])->columns(3),
         ]);
 }

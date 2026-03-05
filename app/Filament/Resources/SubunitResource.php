@@ -35,16 +35,29 @@ class SubunitResource extends Resource
                     ->live()
                     ->searchable()
                     ->preload()
+                    ->afterStateHydrated(function (Forms\Components\Select $component, $state, ?\Illuminate\Database\Eloquent\Model $record) {
+                        if ($record && $record->unit_id) {
+                            $unit = \App\Models\Unit::find($record->unit_id);
+                            if ($unit) {
+                                $component->state($unit->directorate_id);
+                            }
+                        }
+                    })
                     ->afterStateUpdated(fn (Set $set) => $set('unit_id', null))
                     ->dehydrated(false)
-                    ->required(),
+                    ->required()
+                    ->validationMessages(['required' => 'Wajib diisi.']),
                 Forms\Components\Select::make('unit_id')
                     ->label('Induk Unit')
                     ->options(fn (Get $get) => \App\Models\Unit::where('directorate_id', $get('directorate_id'))->where('is_active', true)->pluck('name', 'id'))
                     ->searchable()
                     ->preload()
-                    ->required(),
-                Forms\Components\TextInput::make('name')->label('Nama Sub Unit')->required(),
+                    ->required()
+                    ->validationMessages(['required' => 'Wajib diisi.']),
+                Forms\Components\TextInput::make('name')
+                    ->label('Nama Sub Unit')
+                    ->required()
+                    ->validationMessages(['required' => 'Wajib diisi.']),
                 Forms\Components\Toggle::make('is_active')->label('Status Aktif')->default(true),
             ]);
     }
