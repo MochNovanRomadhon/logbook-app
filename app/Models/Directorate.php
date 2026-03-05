@@ -18,4 +18,16 @@ class Directorate extends Model
     {
         return $this->hasMany(User::class);
     }
+
+    protected static function booted()
+    {
+        static::updated(function ($directorate) {
+            if ($directorate->wasChanged('is_active') && !$directorate->is_active) {
+                // Bulk deactivation
+                $directorate->units()->update(['is_active' => false]);
+                Subunit::whereIn('unit_id', $directorate->units()->pluck('id'))->update(['is_active' => false]);
+                User::where('directorate_id', $directorate->id)->update(['is_active' => false]);
+            }
+        });
+    }
 }

@@ -48,13 +48,6 @@ class EditLogbook extends EditRecord
             ->icon('heroicon-m-check')
             ->color('primary')
             ->action(fn () => $this->save())
-            ->requiresConfirmation()
-            ->modalHeading('Update Data')
-            ->modalDescription('Apakah Anda yakin ingin menyimpan perubahan ini?')
-            ->modalSubmitActionLabel('Ya, Update')
-            ->modalCancelActionLabel('Batal')
-            ->modalIcon('heroicon-o-pencil-square')
-            ->modalIconColor('warning')
             ->keyBindings(['mod+s']);
     }
 

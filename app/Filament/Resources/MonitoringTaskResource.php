@@ -170,19 +170,19 @@ class MonitoringTaskResource extends Resource
                         \Filament\Forms\Components\Select::make('directorate_id')
                             ->label('Direktorat')
                             ->placeholder('Pilih Direktorat')
-                            ->options(Directorate::pluck('name', 'id'))
+                            ->options(\App\Models\Directorate::where('is_active', true)->pluck('name', 'id'))
                             ->live()
                             ->afterStateUpdated(fn (\Filament\Forms\Set $set) => $set('unit_id', null)),
                         \Filament\Forms\Components\Select::make('unit_id')
                             ->label('Unit')
                             ->placeholder('Pilih Unit')
-                            ->options(fn (\Filament\Forms\Get $get) => Unit::where('directorate_id', $get('directorate_id'))->pluck('name', 'id'))
+                            ->options(fn (\Filament\Forms\Get $get) => \App\Models\Unit::where('directorate_id', $get('directorate_id'))->where('is_active', true)->pluck('name', 'id'))
                             ->live()
                             ->afterStateUpdated(fn (\Filament\Forms\Set $set) => $set('subunit_id', null)),
                         \Filament\Forms\Components\Select::make('subunit_id')
                             ->label('Sub Unit')
                             ->placeholder('Pilih Sub Unit')
-                            ->options(fn (\Filament\Forms\Get $get) => Subunit::where('unit_id', $get('unit_id'))->pluck('name', 'id')),
+                            ->options(fn (\Filament\Forms\Get $get) => \App\Models\Subunit::where('unit_id', $get('unit_id'))->where('is_active', true)->pluck('name', 'id')),
                     ])
                 ])
                 ->query(function (Builder $query, array $data): Builder {
@@ -198,7 +198,7 @@ class MonitoringTaskResource extends Resource
             Tables\Filters\SelectFilter::make('user_id')
                 ->label('Pegawai')
                 ->placeholder('Pilih Pegawai')
-                ->relationship('user', 'name')
+                ->relationship('user', 'name', fn(\Illuminate\Database\Eloquent\Builder $query) => $query->where('is_active', true))
                 ->searchable()
                 ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas']))
                 ->columnSpan(3),

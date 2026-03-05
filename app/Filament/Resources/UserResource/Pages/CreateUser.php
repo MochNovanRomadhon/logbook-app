@@ -15,6 +15,28 @@ class CreateUser extends CreateRecord
         return $this->getResource()::getUrl('index');
     }
 
+    protected function beforeCreate(): void
+    {
+        $name = $this->data['name'] ?? null;
+        $email = $this->data['email'] ?? null;
+        
+        $existingUser = \App\Models\User::where(function($query) use ($name, $email) {
+            $query->where('name', $name)->orWhere('email', $email);
+        })->first();
+
+        if ($existingUser) {
+            $status = $existingUser->is_active ? 'Aktif' : 'Tidak Aktif';
+            $field = $existingUser->name === $name ? 'Nama' : 'Email';
+            \Filament\Notifications\Notification::make()
+                ->danger()
+                ->title('Gagal Menyimpan')
+                ->body("{$field} pengguna sudah terdaftar dengan status {$status}.")
+                ->persistent()
+                ->send();
+            throw new \Filament\Support\Exceptions\Halt();
+        }
+    }
+
     protected function getCreateAnotherFormAction(): \Filament\Actions\Action
     {
         return \Filament\Actions\Action::make('createAnother')->hidden();

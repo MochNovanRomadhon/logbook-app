@@ -17,6 +17,36 @@ class EditRole extends ShieldEditRole
         return $this->getResource()::getUrl('index');
     }
 
+    protected function beforeSave(): void
+    {
+        $name = $this->data['name'] ?? null;
+        
+        $existingRole = \Spatie\Permission\Models\Role::where('name', $name)
+            ->where('id', '!=', $this->record->id)->first();
+
+        if ($existingRole) {
+            $status = $existingRole->is_active ? 'Aktif' : 'Tidak Aktif';
+            \Filament\Notifications\Notification::make()
+                ->danger()
+                ->title('Gagal Menyimpan')
+                ->body("Role **{$name}** sudah terdaftar dengan status {$status}.")
+                ->persistent()
+                ->send();
+            throw new \Filament\Support\Exceptions\Halt();
+        }
+
+        // --- CASCADING DEACTIVATION UNTUK USER ---
+        $isDeactivating = isset($this->data['is_active']) && $this->data['is_active'] === false;
+        
+        if ($isDeactivating && $this->record->is_active) {
+            // Role is being deactivated, so deactivate all users who have this role
+            $usersWithRole = \App\Models\User::role($this->record->name)->get();
+            foreach ($usersWithRole as $user) {
+                $user->update(['is_active' => false]);
+            }
+        }
+    }
+
     protected function getActions(): array
     {
         // Hilangkan tombol hapus dari form edit

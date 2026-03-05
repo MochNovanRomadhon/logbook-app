@@ -40,13 +40,12 @@ class UserResource extends Resource
                     // --- UPDATE 1: VALIDASI EMAIL ---
                     Forms\Components\TextInput::make('email')
                         ->email() // Wajib format email (ada @ dan .)
-                        ->unique(ignoreRecord: true) // Tidak boleh ada email ganda di database
                         ->required()
                         ->maxLength(255),
 
                     // Role (Single Select)
                     Forms\Components\Select::make('roles')
-                        ->relationship('roles', 'name')
+                        ->relationship('roles', 'name', modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) => $query->where('is_active', true))
                         ->label('Role')
                         ->preload()
                         ->searchable()
@@ -82,7 +81,7 @@ class UserResource extends Resource
                 })
                 ->schema([
                     Forms\Components\Select::make('directorate_id')
-                        ->relationship('directorate', 'name')
+                        ->relationship('directorate', 'name', modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) => $query->where('is_active', true))
                         ->searchable()
                         ->preload()
                         ->live()
@@ -91,7 +90,7 @@ class UserResource extends Resource
 
                     Forms\Components\Select::make('unit_id')
                         ->options(fn (Get $get) => 
-                            Unit::where('directorate_id', $get('directorate_id'))->pluck('name', 'id')
+                            Unit::where('directorate_id', $get('directorate_id'))->where('is_active', true)->pluck('name', 'id')
                         )
                         ->searchable()
                         ->preload()
@@ -101,7 +100,7 @@ class UserResource extends Resource
 
                     Forms\Components\Select::make('subunit_id')
                         ->options(fn (Get $get) => 
-                            Subunit::where('unit_id', $get('unit_id'))->pluck('name', 'id')
+                            Subunit::where('unit_id', $get('unit_id'))->where('is_active', true)->pluck('name', 'id')
                         )
                         ->searchable()
                         ->preload()
@@ -155,7 +154,7 @@ class UserResource extends Resource
             ->filters([
                 // Filter berdasarkan Role
                 Tables\Filters\SelectFilter::make('roles')
-                    ->relationship('roles', 'name'),
+                    ->relationship('roles', 'name', modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) => $query->where('is_active', true)),
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Status Aktif')
                     ->boolean()

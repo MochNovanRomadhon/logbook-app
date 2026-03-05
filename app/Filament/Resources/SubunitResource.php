@@ -31,7 +31,7 @@ class SubunitResource extends Resource
             ->schema([
                 Forms\Components\Select::make('directorate_id')
                     ->label('Induk Direktorat')
-                    ->options(\App\Models\Directorate::pluck('name', 'id'))
+                    ->options(\App\Models\Directorate::where('is_active', true)->pluck('name', 'id'))
                     ->live()
                     ->searchable()
                     ->preload()
@@ -40,7 +40,7 @@ class SubunitResource extends Resource
                     ->required(),
                 Forms\Components\Select::make('unit_id')
                     ->label('Induk Unit')
-                    ->options(fn (Get $get) => \App\Models\Unit::where('directorate_id', $get('directorate_id'))->pluck('name', 'id'))
+                    ->options(fn (Get $get) => \App\Models\Unit::where('directorate_id', $get('directorate_id'))->where('is_active', true)->pluck('name', 'id'))
                     ->searchable()
                     ->preload()
                     ->required(),

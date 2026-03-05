@@ -12,7 +12,17 @@ class RoleResource extends ShieldRoleResource
 
     public static function getNavigationLabel(): string
     {
-        return 'Hak Akses';
+        return 'Role';
+    }
+
+    public static function getModelLabel(): string
+    {
+        return 'Role';
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return 'Role';
     }
     
     public static function getNavigationSort(): ?int
@@ -43,10 +53,6 @@ class RoleResource extends ShieldRoleResource
                             ->schema([
                                 \Filament\Forms\Components\TextInput::make('name')
                                     ->label(__('filament-shield::filament-shield.field.name'))
-                                    ->unique(
-                                        ignoreRecord: true,
-                                        modifyRuleUsing: fn (\Illuminate\Validation\Rules\Unique $rule) => \BezhanSalleh\FilamentShield\Support\Utils::isTenancyEnabled() ? $rule->where(\BezhanSalleh\FilamentShield\Support\Utils::getTenantModelForeignKey(), \Filament\Facades\Filament::getTenant()?->id) : $rule      
-                                    )
                                     ->required()
                                     ->maxLength(255),
 

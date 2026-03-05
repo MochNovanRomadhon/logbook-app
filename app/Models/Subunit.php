@@ -13,4 +13,13 @@ class Subunit extends Model
     {
         return $this->belongsTo(Unit::class);
     }
+
+    protected static function booted()
+    {
+        static::updated(function ($subunit) {
+            if ($subunit->wasChanged('is_active') && !$subunit->is_active) {
+                User::where('subunit_id', $subunit->id)->update(['is_active' => false]);
+            }
+        });
+    }
 }

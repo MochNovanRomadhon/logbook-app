@@ -25,7 +25,7 @@ class EditUnit extends EditRecord
             \Filament\Notifications\Notification::make()
                 ->danger()
                 ->title('Gagal Menyimpan')
-                ->body("**{$name}** sudah tersimpan pada Direktorat ini dengan status {$status}.")
+                ->body("{$name} sudah tersimpan pada Direktorat ini dengan status {$status}.")
                 ->persistent()
                 ->send();
 

@@ -16,6 +16,24 @@ class CreateRole extends ShieldCreateRole
         return $this->getResource()::getUrl('index');
     }
 
+    protected function beforeCreate(): void
+    {
+        $name = $this->data['name'] ?? null;
+        
+        $existingRole = \Spatie\Permission\Models\Role::where('name', $name)->first();
+
+        if ($existingRole) {
+            $status = $existingRole->is_active ? 'Aktif' : 'Tidak Aktif';
+            \Filament\Notifications\Notification::make()
+                ->danger()
+                ->title('Gagal Menyimpan')
+                ->body("Role **{$name}** sudah terdaftar dengan status {$status}.")
+                ->persistent()
+                ->send();
+            throw new \Filament\Support\Exceptions\Halt();
+        }
+    }
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $this->permissions = collect($data)

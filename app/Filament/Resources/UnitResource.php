@@ -27,7 +27,7 @@ class UnitResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Select::make('directorate_id')
-                    ->relationship('directorate', 'name')
+                    ->relationship('directorate', 'name', modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) => $query->where('is_active', true))
                     ->label('Induk Direktorat')
                     ->searchable()
                     ->preload()
