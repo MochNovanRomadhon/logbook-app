@@ -88,11 +88,30 @@ class LogbookResource extends Resource
                                         Grid::make(2)->schema([
                                             Select::make('task_id')
                                                 ->label('Pilih Tugas')
-                                                ->options(function () {
+                                                ->options(function (Get $get, $component) {
                                                     $tasks = \App\Models\Task::where('user_id', Auth::id())
                                                         ->whereNotIn('status', ['completed', 'cancelled'])
                                                         ->pluck('title', 'id')
                                                         ->toArray();
+
+                                                    // Ambil semua task_id yang sudah dipilih di repeater lain
+                                                    $allItems = $get('../../items') ?? [];
+                                                    $currentPath = $component->getStatePath();
+                                                    $selectedTaskIds = [];
+
+                                                    foreach ($allItems as $uuid => $item) {
+                                                        $itemTaskId = $item['task_id'] ?? null;
+                                                        // Jangan exclude diri sendiri & jangan exclude 'other'
+                                                        if ($itemTaskId && $itemTaskId !== 'other' && !str_contains($currentPath, $uuid)) {
+                                                            $selectedTaskIds[] = $itemTaskId;
+                                                        }
+                                                    }
+
+                                                    // Hapus tugas yang sudah dipilih dari opsi
+                                                    foreach ($selectedTaskIds as $id) {
+                                                        unset($tasks[$id]);
+                                                    }
+
                                                     $tasks['other'] = '— Pekerjaan Lainnya —';
                                                     return $tasks;
                                                 })

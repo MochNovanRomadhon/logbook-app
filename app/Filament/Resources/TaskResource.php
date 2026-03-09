@@ -85,8 +85,8 @@ class TaskResource extends Resource
                             Forms\Components\Select::make('urgency')
                                 ->label('Tingkat Urgensi')
                                 ->options([
-                                    1 => '1. Rendah', 2 => '2. Normal', 3 => '3. Tinggi', 
-                                    5 => '4. Urgent'
+                                    1 => '1', 2 => '2', 3 => '3', 
+                                    5 => '4'
                                 ])
                                 ->required()
                                 ->default(2)
@@ -140,7 +140,6 @@ class TaskResource extends Resource
             ->emptyStateHeading('Belum ada tugas')
             ->emptyStateDescription('Buat tugas baru untuk memulai.')
             ->emptyStateIcon('heroicon-o-clipboard-document-list')
-            ->contentFooter(fn() => view('filament.components.urgency-legend'))
             
             ->columns([
                 Tables\Columns\TextColumn::make('title')->label('Judul')->limit(30)->searchable(),
@@ -150,7 +149,6 @@ class TaskResource extends Resource
                     ->badge()
                     ->formatStateUsing(fn(string $state): string => match($state) {
                         '5' => '4',
-                        '4' => '4',
                         default => $state,
                     })
                     ->color(fn (string $state): string => match ($state) {
@@ -189,24 +187,24 @@ class TaskResource extends Resource
                     ->placeholder('Inisiatif Sendiri')
                     ->toggleable(isToggledHiddenByDefault: true),
                  
-                // Status Interaktif
-                Tables\Columns\SelectColumn::make('status')
+                // Status (read-only)
+                Tables\Columns\TextColumn::make('status')
                     ->label('Status')
-                    ->options([
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
                         'pending' => 'Menunggu',
                         'in_progress' => 'Sedang Proses',
                         'completed' => 'Selesai',
                         'cancelled' => 'Batal',
-                    ])
-                    ->beforeStateUpdated(function ($record, $state) {
-                        if ($state === 'completed') {
-                            $record->completed_at = now();
-                        } elseif ($state === 'cancelled') {
-                            $record->cancelled_at = now();
-                        }
+                        default => $state,
                     })
-                    ->searchable()
-                    ->sortable(),
+                    ->color(fn (string $state): string => match ($state) {
+                        'pending' => 'gray',
+                        'in_progress' => 'info',
+                        'completed' => 'success',
+                        'cancelled' => 'danger',
+                        default => 'gray',
+                    }),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
@@ -214,8 +212,9 @@ class TaskResource extends Resource
                     ->options(['pending'=>'Pending', 'in_progress'=>'Proses', 'completed'=>'Selesai', 'cancelled'=>'Batal']),
                 
                 Tables\Filters\SelectFilter::make('urgency')
+                    ->label('Urgensi')
                     ->placeholder('Pilih Urgensi')
-                    ->options([1 => '1. Rendah', 2 => '2. Normal', 3 => '3. Tinggi', 5 => '4. Urgent']),
+                    ->options([1 => '1', 2 => '2', 3 => '3', 5 => '4']),
             ])
             ->actions([
                 Tables\Actions\Action::make('add_note')

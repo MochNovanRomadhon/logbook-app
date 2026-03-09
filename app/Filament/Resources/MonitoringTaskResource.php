@@ -133,7 +133,6 @@ class MonitoringTaskResource extends Resource
         ->emptyStateHeading('Belum ada data ditampilkan')
         ->emptyStateDescription('Gunakan filter Direktorat, Unit, atau Pegawai untuk menampilkan data.')
         ->emptyStateIcon('heroicon-o-magnifying-glass')
-        ->contentFooter(fn() => view('filament.components.urgency-legend'))
         
         ->columns([
             Tables\Columns\TextColumn::make('title')->label('Judul')->limit(30),
@@ -146,7 +145,6 @@ class MonitoringTaskResource extends Resource
                 ->badge()
                 ->formatStateUsing(fn(string $state): string => match($state) {
                     '5' => '4',
-                    '4' => '4',
                     default => $state,
                 })
                 ->color(fn (string $state): string => match ($state) {
@@ -179,24 +177,24 @@ class MonitoringTaskResource extends Resource
                 ->placeholder('Inisiatif Sendiri')
                 ->toggleable(isToggledHiddenByDefault: true),
                 
-            // Status Interaktif
-            Tables\Columns\SelectColumn::make('status')
+            // Status (read-only)
+            Tables\Columns\TextColumn::make('status')
                 ->label('Status')
-                ->options([
+                ->badge()
+                ->formatStateUsing(fn (string $state): string => match ($state) {
                     'pending' => 'Menunggu',
                     'in_progress' => 'Sedang Proses',
                     'completed' => 'Selesai',
                     'cancelled' => 'Batal',
-                ])
-                ->beforeStateUpdated(function ($record, $state) {
-                    if ($state === 'completed') {
-                        $record->completed_at = now();
-                    } elseif ($state === 'cancelled') {
-                        $record->cancelled_at = now();
-                    }
+                    default => $state,
                 })
-                ->searchable()
-                ->sortable(),
+                ->color(fn (string $state): string => match ($state) {
+                    'pending' => 'gray',
+                    'in_progress' => 'info',
+                    'completed' => 'success',
+                    'cancelled' => 'danger',
+                    default => 'gray',
+                }),
         ])
         ->filters([
             // --- LOKASI KASCADING ---
@@ -245,8 +243,9 @@ class MonitoringTaskResource extends Resource
                 ->columnSpan(3),
 
             Tables\Filters\SelectFilter::make('urgency')
+                ->label('Urgensi')
                 ->placeholder('Pilih Urgensi')
-                ->options([1 => '1. Rendah', 2 => '2. Normal', 3 => '3. Tinggi', 5 => '4. Urgent'])
+                ->options([1 => '1', 2 => '2', 3 => '3', 5 => '4'])
                 ->columnSpan(3),
 
             // --- TOMBOL CUSTOM ---
