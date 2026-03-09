@@ -116,38 +116,60 @@ class MonitoringLogbookResource extends Resource
                                         Grid::make(2)->schema([
                                             Select::make('task_id')
                                                 ->label('Pilih Tugas')
-                                                ->relationship(
-                                                    name: 'task', 
-                                                    titleAttribute: 'title',
-                                                    modifyQueryUsing: fn (Builder $query) => $query
-                                                        ->where('user_id', Auth::id())
+                                                ->options(function () {
+                                                    $tasks = \App\Models\Task::where('user_id', Auth::id())
                                                         ->where('status', '!=', 'completed')
-                                                )
+                                                        ->pluck('title', 'id')
+                                                        ->toArray();
+                                                    $tasks['other'] = '— Pekerjaan Lainnya —';
+                                                    return $tasks;
+                                                })
                                                 ->searchable()
                                                 ->preload()
+                                                ->afterStateHydrated(function ($state, callable $set, $component) {
+                                                    if (is_null($state) && $component->getRecord()) {
+                                                        $component->state('other');
+                                                    }
+                                                })
                                                 ->required()
                                                 ->reactive()
                                                 ->afterStateUpdated(function ($state, callable $set) {
-                                                    if ($state) {
+                                                    if ($state && $state !== 'other') {
                                                         $lastLog = \App\Models\LogbookItem::where('task_id', $state)->latest()->first();
                                                         $set('previous_progress', $lastLog ? $lastLog->current_progress : 0);
+                                                    } else {
+                                                        $set('previous_progress', 0);
+                                                        $set('current_progress', null);
+                                                    }
+                                                    if ($state !== 'other') {
+                                                        $set('custom_task_name', null);
                                                     }
                                                 })
+                                                ->dehydrateStateUsing(fn ($state) => $state === 'other' ? null : $state)
                                                 ->columnSpanFull(), 
+
+                                            TextInput::make('custom_task_name')
+                                                ->label('Nama Pekerjaan Lainnya')
+                                                ->placeholder('Tuliskan nama pekerjaan...')
+                                                ->required(fn (Get $get) => $get('task_id') === 'other')
+                                                ->visible(fn (Get $get) => $get('task_id') === 'other')
+                                                ->columnSpanFull(),
 
                                             TextInput::make('previous_progress')
                                                 ->label('Progress Awal (%)')
                                                 ->numeric()
                                                 ->default(0)
                                                 ->readOnly()
-                                                ->suffix('%'),
+                                                ->suffix('%')
+                                                ->visible(fn (Get $get) => $get('task_id') && $get('task_id') !== 'other'),
 
                                             TextInput::make('current_progress')
                                                 ->label('Progress Akhir (%)')
                                                 ->numeric()
-                                                ->required()
+                                                ->required(fn (Get $get) => $get('task_id') && $get('task_id') !== 'other')
                                                 ->maxValue(100)
-                                                ->suffix('%'),
+                                                ->suffix('%')
+                                                ->visible(fn (Get $get) => $get('task_id') && $get('task_id') !== 'other'),
 
                                             Textarea::make('activity')
                                                 ->label('Deskripsi Aktivitas')
@@ -167,7 +189,7 @@ public static function table(Table $table): Table
 {
     return $table
         ->modifyQueryUsing(function (Builder $query, $livewire) {
-            $query->with(['user.subunit.unit.directorate']);
+            $query->with(['user.subunit.unit.directorate'])->withCount('items');
             
             if (!Auth::user()->hasRole(['super_admin', 'pengawas'])) {
                 return $query->where('user_id', Auth::id());
@@ -190,6 +212,7 @@ public static function table(Table $table): Table
 
             return $query;
         })
+        ->defaultSort('date', 'desc')
         ->emptyStateHeading('Belum ada data ditampilkan')
         ->emptyStateDescription('Gunakan filter di atas untuk menampilkan data.')
         ->emptyStateIcon('heroicon-o-magnifying-glass')
@@ -213,6 +236,22 @@ public static function table(Table $table): Table
             Tables\Columns\TextColumn::make('user.subunit.unit.name')->label('Unit')->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
             
             Tables\Columns\TextColumn::make('items_count')->counts('items')->label('Jml Aktivitas')->badge()->color('info')->alignCenter(),
+
+            // [6] Kolom progress rata-rata
+            Tables\Columns\TextColumn::make('average_progress')
+                ->label('Rata-rata Progress')
+                ->getStateUsing(function (Logbook $record) {
+                    $items = $record->items;
+                    // Hanya hitung item yang memiliki tugas (bukan custom task) dan memiliki nilai progress
+                    $taskItems = $items->filter(fn($item) => $item->task_id !== null && $item->current_progress !== null);
+                    
+                    if ($taskItems->isEmpty()) return '-';
+                    
+                    $avg = $taskItems->avg('current_progress');
+                    return number_format($avg, 0) . '%';
+                })
+                ->badge()
+                ->color(fn(string $state) => $state === '100%' ? 'success' : ($state === '-' ? 'gray' : 'primary')),
         ])
         ->filters([
             // --- LOKASI KASCADING ---
@@ -297,6 +336,69 @@ public static function table(Table $table): Table
         ])
         ->bulkActions([]);
 }
+
+    // [4] Infolist Logbook untuk Monitoring
+    public static function infolist(\Filament\Infolists\Infolist $infolist): \Filament\Infolists\Infolist
+    {
+        // InfoList yang sama dengan LogbookResource
+        return $infolist
+            ->schema([
+                \Filament\Infolists\Components\Section::make('Informasi Utama')
+                    ->schema([
+                        \Filament\Infolists\Components\Grid::make(3)->schema([
+                            \Filament\Infolists\Components\TextEntry::make('date')
+                                ->label('Tanggal Laporan')
+                                ->date('d F Y')
+                                ->weight('bold'),
+
+                            \Filament\Infolists\Components\TextEntry::make('is_submitted')
+                                ->label('Status')
+                                ->badge()
+                                ->formatStateUsing(fn (bool $state) => $state ? 'Final (Terkunci)' : 'Draft')
+                                ->colors(['gray' => false, 'success' => true]),
+
+                            \Filament\Infolists\Components\TextEntry::make('user.name')
+                                ->label('Pegawai')
+                                ->weight('bold')
+                                ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
+                        ]),
+                    ]),
+
+                \Filament\Infolists\Components\Section::make('Rincian Aktivitas')
+                    ->schema([
+                        \Filament\Infolists\Components\RepeatableEntry::make('items')
+                            ->label('')
+                            ->schema([
+                                \Filament\Infolists\Components\Grid::make(4)->schema([
+                                    \Filament\Infolists\Components\TextEntry::make('task.title')
+                                        ->label('Pekerjaan/Tugas')
+                                        ->getStateUsing(fn ($record) => $record->task_id ? $record->task->title : $record->custom_task_name)
+                                        ->weight('bold')
+                                        ->size(\Filament\Infolists\Components\TextEntry\TextEntrySize::Large)
+                                        ->columnSpan(2),
+
+                                    \Filament\Infolists\Components\TextEntry::make('progress_change')
+                                        ->label('Progress')
+                                        ->getStateUsing(function ($record) {
+                                            if (!$record->task_id) return 'N/A';
+                                            $prev = $record->previous_progress ?? 0;
+                                            $curr = $record->current_progress ?? 0;
+                                            return "{$prev}% ➝ {$curr}%";
+                                        })
+                                        ->badge()
+                                        ->color(fn ($state) => str_contains($state, '100%') ? 'success' : ($state === 'N/A' ? 'gray' : 'primary'))
+                                        ->columnSpan(2),
+
+                                    \Filament\Infolists\Components\TextEntry::make('activity')
+                                        ->label('Deskripsi Aktivitas')
+                                        ->markdown()
+                                        ->columnSpanFull(),
+                                ]),
+                            ])
+                            ->columns(1)
+                    ])
+            ]);
+    }
     
     public static function getRelations(): array { return []; }
     public static function getPages(): array {

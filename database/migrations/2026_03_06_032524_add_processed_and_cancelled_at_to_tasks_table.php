@@ -11,8 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('logbook_items', function (Blueprint $table) {
-            //
+        Schema::table('tasks', function (Blueprint $table) {
+            $table->dateTime('processed_at')->nullable()->after('completed_at');
+            $table->dateTime('cancelled_at')->nullable()->after('processed_at');
         });
     }
 
@@ -21,8 +22,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('logbook_items', function (Blueprint $table) {
-            //
+        Schema::table('tasks', function (Blueprint $table) {
+            $table->dropColumn(['processed_at', 'cancelled_at']);
         });
     }
 };

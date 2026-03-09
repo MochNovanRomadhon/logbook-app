@@ -25,16 +25,27 @@ class EditLogbook extends EditRecord
 
             // TOMBOL FINALISASI
             Actions\Action::make('finalize')
-                ->label('Finalisasi & Kunci Logbook')
+                ->label('Finalisasi Logbook')
                 ->icon('heroicon-o-lock-closed')
                 ->color('success')
                 ->requiresConfirmation()
                 ->modalHeading('Finalisasi Logbook')
                 ->modalDescription('Setelah difinalisasi, logbook tidak dapat diedit kembali. Apakah Anda yakin?')
-                ->modalSubmitActionLabel('Ya, Kunci Logbook')
+                ->modalSubmitActionLabel('Ya, Finalisasi')
                 ->visible(fn () => !$this->record->is_submitted)
                 ->action(function () {
                     $this->record->update(['is_submitted' => true]);
+                    
+                    // [7] Logika update status tugas 100%
+                    foreach ($this->record->items as $item) {
+                        if ($item->task_id && $item->current_progress == 100) {
+                            \App\Models\Task::where('id', $item->task_id)->update([
+                                'status' => 'completed',
+                                'completed_at' => now(),
+                            ]);
+                        }
+                    }
+
                     Notification::make()->title('Logbook Berhasil Difinalisasi')->success()->send();
                     $this->redirect($this->getResource()::getUrl('edit', ['record' => $this->record]));
                 }),

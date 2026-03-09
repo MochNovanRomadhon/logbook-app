@@ -66,8 +66,8 @@ class MonitoringTaskResource extends Resource
                             Forms\Components\Select::make('urgency')
                                 ->label('Tingkat Urgensi')
                                 ->options([
-                                    1 => 'Rendah', 2 => 'Normal', 3 => 'Tinggi', 
-                                    4 => 'Sangat Tinggi', 5 => 'Urgent'
+                                    1 => '1. Rendah', 2 => '2. Normal', 3 => '3. Tinggi', 
+                                    4 => '4. Sangat Tinggi', 5 => '5. Urgent'
                                 ])
                                 ->required()
                                 ->default(2)
@@ -83,7 +83,8 @@ class MonitoringTaskResource extends Resource
                                 ->options([
                                     'pending' => 'Pending',
                                     'in_progress' => 'Sedang Dikerjakan',
-                                    'completed' => 'Selesai'
+                                    'completed' => 'Selesai',
+                                    'cancelled' => 'Batal'
                                 ])
                                 ->default('pending')
                                 ->required()
@@ -106,7 +107,7 @@ class MonitoringTaskResource extends Resource
         ->recordUrl(null) 
         
         ->modifyQueryUsing(function (Builder $query, $livewire) {
-            $query->with(['user.subunit.unit.directorate']);
+            $query->with(['user.subunit.unit.directorate', 'assigner']);
 
             if (!Auth::user()->hasRole(['super_admin', 'pengawas'])) {
                 return $query->where('user_id', Auth::id());
@@ -128,9 +129,11 @@ class MonitoringTaskResource extends Resource
 
             return $query;
         })
+        ->defaultSort('deadline', 'asc')
         ->emptyStateHeading('Belum ada data ditampilkan')
         ->emptyStateDescription('Gunakan filter Direktorat, Unit, atau Pegawai untuk menampilkan data.')
         ->emptyStateIcon('heroicon-o-magnifying-glass')
+        ->contentFooter(fn() => view('filament.components.urgency-legend'))
         
         ->columns([
             Tables\Columns\TextColumn::make('title')->label('Judul')->limit(30),
@@ -141,26 +144,59 @@ class MonitoringTaskResource extends Resource
             Tables\Columns\TextColumn::make('urgency')
                 ->label('Urgensi')
                 ->badge()
-                ->formatStateUsing(fn (string $state): string => match ($state) {
-                    '1' => 'Rendah', '2' => 'Normal', '3' => 'Tinggi', 
-                    '4' => 'Sangat Tinggi', '5' => 'Urgent', default => $state,
+                ->formatStateUsing(fn(string $state): string => match($state) {
+                    '5' => '4',
+                    '4' => '4',
+                    default => $state,
                 })
                 ->color(fn (string $state): string => match ($state) {
-                    '1' => 'gray', '2' => 'info', '3' => 'warning', '4', '5' => 'danger', default => 'gray',
+                    '1' => 'gray', '2' => 'info', '3' => 'warning', '4' => 'danger', '5' => 'danger', default => 'gray',
                 }),
                 
             Tables\Columns\TextColumn::make('deadline')->date('d M Y')->sortable()
-                ->color(fn ($record) => $record->deadline < now() && $record->status !== 'completed' ? 'danger' : 'gray'),
+                ->color(fn ($record) => $record->deadline < now() && !in_array($record->status, ['completed', 'cancelled']) ? 'danger' : 'gray')
+                ->description(function (\App\Models\Task $record): ?string {
+                    if (in_array($record->status, ['completed', 'cancelled'])) return null;
+                    
+                    $now = now()->startOfDay();
+                    $deadline = \Carbon\Carbon::parse($record->deadline)->startOfDay();
+                    
+                    if ($deadline->isBefore($now)) {
+                        return 'Terlambat';
+                    }
+                    
+                    $diffDays = $now->diffInDays($deadline); 
+                    if ($diffDays <= 3) {
+                        return $diffDays == 0 ? 'Hari ini' : "H-{$diffDays}";
+                    }
+                    
+                    return null;
+                }),
+
+            // Kolom Ditugaskan Oleh
+            Tables\Columns\TextColumn::make('assigner.name')
+                ->label('Ditugaskan Oleh')
+                ->placeholder('Inisiatif Sendiri')
+                ->toggleable(isToggledHiddenByDefault: true),
                 
-            Tables\Columns\TextColumn::make('status')
-                ->badge()
-                ->formatStateUsing(fn (string $state): string => match ($state) {
+            // Status Interaktif
+            Tables\Columns\SelectColumn::make('status')
+                ->label('Status')
+                ->options([
                     'pending' => 'Menunggu',
                     'in_progress' => 'Sedang Proses',
                     'completed' => 'Selesai',
-                    default => $state,
+                    'cancelled' => 'Batal',
+                ])
+                ->beforeStateUpdated(function ($record, $state) {
+                    if ($state === 'completed') {
+                        $record->completed_at = now();
+                    } elseif ($state === 'cancelled') {
+                        $record->cancelled_at = now();
+                    }
                 })
-                ->colors(['gray' => 'pending', 'warning' => 'in_progress', 'success' => 'completed']),
+                ->searchable()
+                ->sortable(),
         ])
         ->filters([
             // --- LOKASI KASCADING ---
@@ -205,12 +241,12 @@ class MonitoringTaskResource extends Resource
 
             Tables\Filters\SelectFilter::make('status')
                 ->placeholder('Pilih Status')
-                ->options(['pending'=>'Pending', 'in_progress'=>'Proses', 'completed'=>'Selesai'])
+                ->options(['pending'=>'Pending', 'in_progress'=>'Proses', 'completed'=>'Selesai', 'cancelled'=>'Batal'])
                 ->columnSpan(3),
 
             Tables\Filters\SelectFilter::make('urgency')
                 ->placeholder('Pilih Urgensi')
-                ->options([1 => 'Rendah', 2 => 'Normal', 3 => 'Tinggi', 4 => 'Sangat Tinggi', 5 => 'Urgent'])
+                ->options([1 => '1. Rendah', 2 => '2. Normal', 3 => '3. Tinggi', 5 => '4. Urgent'])
                 ->columnSpan(3),
 
             // --- TOMBOL CUSTOM ---
@@ -232,67 +268,148 @@ class MonitoringTaskResource extends Resource
         ->filtersApplyAction(fn (\Filament\Tables\Actions\Action $action) => $action->hidden())
 
         ->actions([
+            Tables\Actions\Action::make('add_note')
+                ->label('Catatan')
+                ->icon('heroicon-o-document-text')
+                ->color('secondary')
+                ->form([
+                    \Filament\Forms\Components\Textarea::make('notes')
+                        ->label('Catatan Tambahan')
+                        ->rows(3)
+                        ->default(fn (\App\Models\Task $record) => $record->notes),
+                ])
+                ->action(function (\App\Models\Task $record, array $data): void {
+                    $record->update(['notes' => $data['notes']]);
+                }),
+
             Tables\Actions\ViewAction::make()
                 ->label('Lihat Detail')
                 ->modalHeading('Rincian Tugas'),
         ])
-        ->bulkActions([]);
+        ->bulkActions([
+            Tables\Actions\BulkActionGroup::make([
+                Tables\Actions\BulkAction::make('update_status')
+                    ->label('Perbarui Status')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary')
+                    ->form([
+                        \Filament\Forms\Components\Select::make('status')
+                            ->label('Pilih Status Baru')
+                            ->options([
+                                'pending' => 'Menunggu',
+                                'in_progress' => 'Sedang Proses',
+                                'completed' => 'Selesai',
+                                'cancelled' => 'Batal',
+                            ])
+                            ->required(),
+                    ])
+                    ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data): void {
+                        foreach ($records as $record) {
+                            $updateData = ['status' => $data['status']];
+                            if ($data['status'] === 'completed') {
+                                $updateData['completed_at'] = now();
+                            } elseif ($data['status'] === 'cancelled') {
+                                $updateData['cancelled_at'] = now();
+                            }
+                            $record->update($updateData);
+                        }
+                    })
+                    ->deselectRecordsAfterCompletion(),
+            ]),
+        ]);
 }
 
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist
             ->schema([
-                InfoSection::make('Detail Informasi Tugas')
+                InfoSection::make('Informasi Utama')
                     ->schema([
+                        // Baris 1: Judul
                         TextEntry::make('title')
                             ->label('Judul Tugas')
                             ->weight('bold')
                             ->size(TextEntrySize::Large)
                             ->columnSpanFull(),
 
-                        InfoGrid::make(2)->schema([
+                        // Baris 2: Deskripsi
+                        TextEntry::make('description')
+                            ->label('Deskripsi Tugas')
+                            ->markdown()
+                            ->placeholder('-')
+                            ->columnSpanFull(),
+                    ]),
+                
+                InfoSection::make('Detail Tambahan')
+                    ->schema([
+                        InfoGrid::make(3)->schema([
                             TextEntry::make('urgency')
                                 ->label('Tingkat Urgensi')
                                 ->badge()
                                 ->formatStateUsing(fn (string $state): string => match ($state) {
-                                    '1' => 'Rendah', '2' => 'Normal', '3' => 'Tinggi',
-                                    '4' => 'Sangat Tinggi', '5' => 'Urgent', default => $state,
+                                    '1' => '1. Rendah', '2' => '2. Normal', '3' => '3. Tinggi',
+                                    '4' => '4. Urgent', '5' => '4. Urgent', default => $state,
                                 })
                                 ->color(fn (string $state): string => match ($state) {
-                                    '1' => 'gray', '2' => 'info', '3' => 'warning', '4', '5' => 'danger', default => 'gray',
+                                    '1' => 'gray', '2' => 'info', '3' => 'warning', '4' => 'danger', '5' => 'danger', default => 'gray',
                                 }),
 
                             TextEntry::make('deadline')
                                 ->label('Tenggat Waktu')
-                                ->date('d M Y'),
-
-                            TextEntry::make('status')
-                                ->label('Status')
+                                ->date('d F Y'),
+                                
+                            TextEntry::make('assigner.name')
+                                ->label('Ditugaskan Oleh')
                                 ->badge()
-                                ->formatStateUsing(fn (string $state): string => match ($state) {
-                                    'pending' => 'Menunggu',
-                                    'in_progress' => 'Sedang Proses',
-                                    'completed' => 'Selesai',
-                                    default => $state,
-                                })
-                                ->colors([
-                                    'gray' => 'pending', 'warning' => 'in_progress', 'success' => 'completed',
-                                ]),
-                            
-                            // Tetap sembunyikan Sub Unit jika Pegawai biasa (sesuai request awal)
-                            // Jika ingin ditampilkan untuk pegawai juga, hapus baris visible() ini
+                                ->color('gray')
+                                ->placeholder('Inisiatif Sendiri'),
+                                
                             TextEntry::make('user.subunit.name')
-                                ->label('Sub Unit')
+                                ->label('Pemilik Tugas (Sub Unit)')
                                 ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
                         ]),
 
-                        TextEntry::make('description')
-                            ->label('Deskripsi')
+                        TextEntry::make('notes')
+                            ->label('Catatan Tambahan')
                             ->markdown()
-                            ->placeholder('Tidak ada deskripsi')
+                            ->placeholder('Tidak ada catatan.')
                             ->columnSpanFull(),
-                    ])
+                    ]),
+
+                InfoSection::make('Status & Riwayat Waktu')
+                    ->schema([
+                        InfoGrid::make(4)->schema([
+                            TextEntry::make('status')
+                                ->label('Status Saat Ini')
+                                ->badge()
+                                ->formatStateUsing(fn (string $state): string => match ($state) {
+                                    'pending' => 'Menunggu',
+                                    'in_progress' => 'Sedang Diproses',
+                                    'completed' => 'Selesai',
+                                    'cancelled' => 'Batal',
+                                    default => $state,
+                                })
+                                ->colors([
+                                    'gray' => 'pending', 'info' => 'in_progress', 'success' => 'completed', 'danger' => 'cancelled',
+                                ]),
+
+                            TextEntry::make('created_at')
+                                ->label('Dibuat Pada')
+                                ->date('d F Y')
+                                ->placeholder('-'),
+                                
+                            TextEntry::make('processed_at')
+                                ->label('Mulai Dikerjakan')
+                                ->date('d F Y')
+                                ->placeholder('-'),
+                            
+                            TextEntry::make('completed_at')
+                                ->label('Selesai / Dibatalkan')
+                                ->getStateUsing(fn(\App\Models\Task $record) => $record->completed_at ?? $record->cancelled_at)
+                                ->date('d F Y H:i')
+                                ->placeholder('-'),
+                        ]),
+                    ])->collapsed(),
             ]);
     }
 

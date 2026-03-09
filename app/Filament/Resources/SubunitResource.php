@@ -12,6 +12,7 @@ use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
+use Illuminate\Database\Eloquent\Builder;
 
 class SubunitResource extends Resource
 {
@@ -65,6 +66,7 @@ class SubunitResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['unit.directorate']))
             ->columns([
                 Tables\Columns\TextColumn::make('unit.directorate.name')->label('Direktorat')->sortable(),
                 Tables\Columns\TextColumn::make('unit.name')->label('Unit')->sortable(),

@@ -17,11 +17,15 @@ class Task extends Model
         'urgency',
         'deadline',
         'completed_at',
+        'processed_at',
+        'cancelled_at',
     ];
 
     protected $casts = [
         'deadline' => 'date',           // Agar otomatis jadi object Carbon
         'completed_at' => 'datetime',
+        'processed_at' => 'datetime',
+        'cancelled_at' => 'datetime',
         'urgency' => 'integer',
     ];
 

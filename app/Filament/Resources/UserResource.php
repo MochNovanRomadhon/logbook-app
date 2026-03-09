@@ -101,6 +101,7 @@ class UserResource extends Resource
                     Forms\Components\Select::make('directorate_id')
                         ->relationship('directorate', 'name', modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) => $query->where('is_active', true))
                         ->searchable()
+                        ->label('Direktorat')
                         ->preload()
                         ->live()
                         ->afterStateUpdated(fn (Set $set) => $set('unit_id', null))
@@ -116,6 +117,7 @@ class UserResource extends Resource
                             Unit::where('directorate_id', $get('directorate_id'))->where('is_active', true)->pluck('name', 'id')
                         )
                         ->searchable()
+                        ->label('Unit')
                         ->preload()
                         ->live()
                         ->afterStateUpdated(fn (Set $set) => $set('subunit_id', null))
@@ -131,6 +133,7 @@ class UserResource extends Resource
                             Subunit::where('unit_id', $get('unit_id'))->where('is_active', true)->pluck('name', 'id')
                         )
                         ->searchable()
+                        ->label('Subunit')
                         ->preload()
                         ->required(function (Get $get) {
                             $roleId = $get('roles');
@@ -144,6 +147,7 @@ class UserResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['roles', 'directorate', 'unit', 'subunit']))
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nama')
@@ -152,7 +156,6 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('email')
                     ->searchable(),
                 
-                // Menampilkan Role di Tabel
                 Tables\Columns\TextColumn::make('roles.name')
                     ->badge()
                     ->color('info')
@@ -161,16 +164,13 @@ class UserResource extends Resource
                 // Menampilkan Unit Kerja (Nested)
                 Tables\Columns\TextColumn::make('directorate.name')
                     ->label('Direktorat')
-                    ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true), // Sembunyikan default biar gak penuh
 
                 Tables\Columns\TextColumn::make('unit.name')
                     ->label('Unit')
-                    ->toggleable(isToggledHiddenByDefault: true)
-                    ->sortable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('subunit.name')
-                    ->label('Sub Unit')
-                    ->sortable(),
+                    ->label('Sub Unit'),
 
                 Tables\Columns\TextColumn::make('is_active')
                     ->label('Status')
@@ -181,7 +181,6 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Dibuat Pada')
                     ->dateTime()
-                    ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
@@ -199,10 +198,7 @@ class UserResource extends Resource
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
+            ->bulkActions([ 
             ]);
     }
 

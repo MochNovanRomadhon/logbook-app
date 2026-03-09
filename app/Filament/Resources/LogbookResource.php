@@ -23,6 +23,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Group;
+use Filament\Forms\Get;
 use Filament\Tables\Enums\FiltersLayout;
 
 class LogbookResource extends Resource
@@ -61,7 +62,8 @@ class LogbookResource extends Resource
                                     DatePicker::make('date')
                                         ->label('Tanggal Laporan')
                                         ->default(now())
-                                        ->readOnly()
+                                        // [3] Cegah logbook ganda per hari
+                                        ->unique(ignoreRecord: true, modifyRuleUsing: fn (\Illuminate\Validation\Rules\Unique $rule) => $rule->where('user_id', Auth::id()))
                                         ->required(),
                                     
                                     TextInput::make('status_display')
@@ -88,25 +90,42 @@ class LogbookResource extends Resource
                                                 ->label('Pilih Tugas')
                                                 ->options(function () {
                                                     $tasks = \App\Models\Task::where('user_id', Auth::id())
-                                                        ->where('status', '!=', 'completed')
+                                                        ->whereNotIn('status', ['completed', 'cancelled'])
                                                         ->pluck('title', 'id')
                                                         ->toArray();
-                                                    return array_merge(['other' => '— Pekerjaan Lainnya —'], $tasks);
+                                                    $tasks['other'] = '— Pekerjaan Lainnya —';
+                                                    return $tasks;
                                                 })
                                                 ->searchable()
                                                 ->preload()
+                                                ->afterStateHydrated(function ($state, callable $set, $component) {
+                                                    if (is_null($state) && $component->getRecord()) {
+                                                        $component->state('other');
+                                                    }
+                                                })
                                                 ->required()
-                                                ->live()
+                                                ->reactive()
                                                 ->afterStateUpdated(function ($state, callable $set) {
                                                     if ($state && $state !== 'other') {
                                                         $lastLog = \App\Models\LogbookItem::where('task_id', $state)->latest()->first();
                                                         $set('previous_progress', $lastLog ? $lastLog->current_progress : 0);
                                                     } else {
-                                                        $set('previous_progress', null);
+                                                        $set('previous_progress', 0);
                                                         $set('current_progress', null);
                                                     }
+                                                    if ($state !== 'other') {
+                                                        $set('custom_task_name', null);
+                                                    }
                                                 })
+                                                ->dehydrateStateUsing(fn ($state) => $state === 'other' ? null : $state)
                                                 ->columnSpanFull(), 
+
+                                            TextInput::make('custom_task_name')
+                                                ->label('Nama Pekerjaan Lainnya')
+                                                ->placeholder('Tuliskan nama pekerjaan...')
+                                                ->required(fn (Get $get) => $get('task_id') === 'other')
+                                                ->visible(fn (Get $get) => $get('task_id') === 'other')
+                                                ->columnSpanFull(),
 
                                             TextInput::make('previous_progress')
                                                 ->label('Progress Awal (%)')
@@ -114,15 +133,15 @@ class LogbookResource extends Resource
                                                 ->default(0)
                                                 ->readOnly()
                                                 ->suffix('%')
-                                                ->hidden(fn (\Filament\Forms\Get $get) => $get('task_id') === 'other'),
+                                                ->visible(fn (Get $get) => $get('task_id') && $get('task_id') !== 'other'),
 
                                             TextInput::make('current_progress')
                                                 ->label('Progress Akhir (%)')
                                                 ->numeric()
-                                                ->required(fn (\Filament\Forms\Get $get) => $get('task_id') !== 'other')
+                                                ->required(fn (Get $get) => $get('task_id') && $get('task_id') !== 'other')
                                                 ->maxValue(100)
                                                 ->suffix('%')
-                                                ->hidden(fn (\Filament\Forms\Get $get) => $get('task_id') === 'other'),
+                                                ->visible(fn (Get $get) => $get('task_id') && $get('task_id') !== 'other'),
 
                                             Textarea::make('activity')
                                                 ->label('Deskripsi Aktivitas')
@@ -142,8 +161,10 @@ class LogbookResource extends Resource
     {
         return $table
             ->modifyQueryUsing(function (Builder $query) {
-                return $query->where('user_id', Auth::id());
+                return $query->with('items')->withCount('items')->where('user_id', Auth::id());
             })
+            // [1] Sortir default berdasarkan tanggal terbaru
+            ->defaultSort('date', 'desc')
             ->emptyStateHeading('Belum ada logbook')
             ->emptyStateDescription('Buat logbook harian Anda sekarang.')
             ->emptyStateIcon('heroicon-o-book-open')
@@ -151,15 +172,30 @@ class LogbookResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('date')->date('d F Y')->label('Tanggal')->sortable(),
                 
+                Tables\Columns\TextColumn::make('items_count')->counts('items')->label('Jml Aktivitas')->badge()->color('info')->alignCenter(),
+
+                // [6] Kolom progress rata-rata
+                Tables\Columns\TextColumn::make('average_progress')
+                    ->label('Rata-rata Progress')
+                    ->getStateUsing(function (Logbook $record) {
+                        $items = $record->items;
+                        // Hanya hitung item yang memiliki tugas (bukan custom task) dan memiliki nilai progress
+                        $taskItems = $items->filter(fn($item) => $item->task_id !== null && $item->current_progress !== null);
+                        
+                        if ($taskItems->isEmpty()) return '-';
+                        
+                        $avg = $taskItems->avg('current_progress');
+                        return number_format($avg, 0) . '%';
+                    })
+                    ->badge()
+                    ->color(fn(string $state) => $state === '100%' ? 'success' : ($state === '-' ? 'gray' : 'primary')),
+
                 Tables\Columns\TextColumn::make('is_submitted')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (bool $state) => $state ? 'Final' : 'Draft')
                     ->colors(['gray' => false, 'success' => true])
                     ->icon(fn (bool $state) => $state ? 'heroicon-o-lock-closed' : 'heroicon-o-pencil'),
-
-                // HAPUS ->searchable() AGAR BAR SEARCH HILANG
-                Tables\Columns\TextColumn::make('items_count')->counts('items')->label('Jml Aktivitas')->badge()->color('info')->alignCenter(),
             ])
             ->filters([
                 Tables\Filters\Filter::make('date_range')
@@ -178,17 +214,102 @@ class LogbookResource extends Resource
                     ->label('Status')
                     ->placeholder('Pilih Status') // <--- GANTI PLACEHOLDER
                     ->options([0 => 'Draft', 1 => 'Final']),
-            ], layout: FiltersLayout::AboveContent)
+            ])
             ->filtersFormColumns(2) 
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make()
                     ->visible(fn ($record) => !$record->is_submitted),
+
+                // [2] Tombol "Finalkan" cepat
+                Tables\Actions\Action::make('finalize')
+                    ->label('Finalkan')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Finalkan Logbook')
+                    ->modalDescription('Apakah Anda yakin ingin memfinalkan logbook ini? Setelah difinalkan, logbook tidak dapat diubah lagi.')
+                    ->modalSubmitActionLabel('Ya, Finalkan')
+                    ->visible(fn ($record) => !$record->is_submitted)
+                    ->action(function (Logbook $record) {
+                        $record->update(['is_submitted' => true]);
+
+                        // [7] Logika update status tugas 100%
+                        foreach ($record->items as $item) {
+                            if ($item->task_id && $item->current_progress == 100) {
+                                \App\Models\Task::where('id', $item->task_id)->update([
+                                    'status' => 'completed',
+                                    'completed_at' => now(),
+                                ]);
+                            }
+                        }
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
+            ]);
+    }
+
+    // [4] Infolist Logbook
+    public static function infolist(\Filament\Infolists\Infolist $infolist): \Filament\Infolists\Infolist
+    {
+        return $infolist
+            ->schema([
+                \Filament\Infolists\Components\Section::make('Informasi Utama')
+                    ->schema([
+                        \Filament\Infolists\Components\Grid::make(3)->schema([
+                            \Filament\Infolists\Components\TextEntry::make('date')
+                                ->label('Tanggal Laporan')
+                                ->date('d F Y')
+                                ->weight('bold'),
+
+                            \Filament\Infolists\Components\TextEntry::make('is_submitted')
+                                ->label('Status')
+                                ->badge()
+                                ->formatStateUsing(fn (bool $state) => $state ? 'Final (Terkunci)' : 'Draft')
+                                ->colors(['gray' => false, 'success' => true]),
+
+                            \Filament\Infolists\Components\TextEntry::make('items_count')
+                                ->label('Total Aktivitas')
+                                ->getStateUsing(fn($record) => $record->items()->count()),
+                        ]),
+                    ]),
+
+                \Filament\Infolists\Components\Section::make('Rincian Aktivitas')
+                    ->schema([
+                        \Filament\Infolists\Components\RepeatableEntry::make('items')
+                            ->label('')
+                            ->schema([
+                                \Filament\Infolists\Components\Grid::make(4)->schema([
+                                    \Filament\Infolists\Components\TextEntry::make('task.title')
+                                        ->label('Pekerjaan/Tugas')
+                                        ->getStateUsing(fn ($record) => $record->task_id ? $record->task->title : $record->custom_task_name)
+                                        ->weight('bold')
+                                        ->size(\Filament\Infolists\Components\TextEntry\TextEntrySize::Large)
+                                        ->columnSpan(2),
+
+                                    \Filament\Infolists\Components\TextEntry::make('progress_change')
+                                        ->label('Progress')
+                                        ->getStateUsing(function ($record) {
+                                            if (!$record->task_id) return 'N/A';
+                                            $prev = $record->previous_progress ?? 0;
+                                            $curr = $record->current_progress ?? 0;
+                                            return "{$prev}% ➝ {$curr}%";
+                                        })
+                                        ->badge()
+                                        ->color(fn ($state) => str_contains($state, '100%') ? 'success' : ($state === 'N/A' ? 'gray' : 'primary'))
+                                        ->columnSpan(2),
+
+                                    \Filament\Infolists\Components\TextEntry::make('activity')
+                                        ->label('Deskripsi Aktivitas')
+                                        ->markdown()
+                                        ->columnSpanFull(),
+                                ]),
+                            ])
+                            ->columns(1)
+                    ])
             ]);
     }
     
