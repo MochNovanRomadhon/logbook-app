@@ -74,6 +74,15 @@ class TaskResource extends Resource
                             ->visible(fn () => Auth::user()->hasRole('pengawas'))
                             ->columnSpanFull(),
 
+                        // Ditugaskan Oleh (hanya tampil untuk pegawai, read-only)
+                        Forms\Components\TextInput::make('assigner_name_display')
+                            ->label('Ditugaskan Oleh')
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->formatStateUsing(fn ($record) => $record?->assigner?->name ?? '-')
+                            ->visible(fn ($record) => !Auth::user()->hasRole('pengawas') && $record?->assigned_by !== null)
+                            ->columnSpanFull(),
+
                         Forms\Components\TextInput::make('title')
                             ->label('Judul Tugas')
                             ->required()
@@ -85,8 +94,11 @@ class TaskResource extends Resource
                             Forms\Components\Select::make('urgency')
                                 ->label('Tingkat Urgensi')
                                 ->options([
-                                    1 => '1', 2 => '2', 3 => '3', 
-                                    5 => '4'
+                                    1 => '1',
+                                    2 => '2',
+                                    3 => '3',
+                                    4 => '4',
+                                    5 => '5',
                                 ])
                                 ->required()
                                 ->default(2)
@@ -100,10 +112,10 @@ class TaskResource extends Resource
                             Forms\Components\Select::make('status')
                                 ->label('Status')
                                 ->options([
-                                    'pending' => 'Belum',
-                                    'in_progress' => 'Sedang Dikerjakan',
-                                    'completed' => 'Selesai',
-                                    'cancelled' => 'Batal'
+                                    'pending'     => 'Menunggu',
+                                    'in_progress' => 'Proses',
+                                    'completed'   => 'Selesai',
+                                    'cancelled'   => 'Batal',
                                 ])
                                 ->default('pending')
                                 ->required()
@@ -124,7 +136,6 @@ class TaskResource extends Resource
         return $table
             ->recordUrl(fn (Task $record): string => Pages\EditTask::getUrl(['record' => $record->getKey()])) 
             
-            // [1] Sortir default + eager load assigner
             ->defaultSort('deadline', 'asc')
             ->modifyQueryUsing(function (Builder $query) {
                 return $query->with('assigner')->where('user_id', Auth::id());
@@ -139,10 +150,7 @@ class TaskResource extends Resource
                 Tables\Columns\TextColumn::make('urgency')
                     ->label('Urgensi')
                     ->badge()
-                    ->formatStateUsing(fn(string $state): string => match($state) {
-                        '5' => '4',
-                        default => $state,
-                    })
+                    ->formatStateUsing(fn(string $state): string => $state)
                     ->color(fn (string $state): string => match ($state) {
                         '1' => 'gray',
                         '2' => 'info',
@@ -173,7 +181,7 @@ class TaskResource extends Resource
                     })
                     ->label('Tenggat Waktu'),
 
-                // [3] Kolom "Ditugaskan Oleh"
+                // Kolom "Ditugaskan Oleh"
                 Tables\Columns\TextColumn::make('assigner.name')
                     ->label('Ditugaskan Oleh')
                     ->placeholder('Inisiatif Sendiri')
@@ -184,29 +192,29 @@ class TaskResource extends Resource
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'pending' => 'Menunggu',
-                        'in_progress' => 'Sedang Proses',
-                        'completed' => 'Selesai',
-                        'cancelled' => 'Batal',
-                        default => $state,
+                        'pending'     => 'Menunggu',
+                        'in_progress' => 'Proses',
+                        'completed'   => 'Selesai',
+                        'cancelled'   => 'Batal',
+                        default       => $state,
                     })
                     ->color(fn (string $state): string => match ($state) {
-                        'pending' => 'gray',
+                        'pending'     => 'gray',
                         'in_progress' => 'info',
-                        'completed' => 'success',
-                        'cancelled' => 'danger',
-                        default => 'gray',
+                        'completed'   => 'success',
+                        'cancelled'   => 'danger',
+                        default       => 'gray',
                     }),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->placeholder('Pilih Status')
-                    ->options(['pending'=>'Menunggu', 'in_progress'=>'Proses', 'completed'=>'Selesai', 'cancelled'=>'Batal']),
+                    ->options(['pending' => 'Menunggu', 'in_progress' => 'Proses', 'completed' => 'Selesai', 'cancelled' => 'Batal']),
                 
                 Tables\Filters\SelectFilter::make('urgency')
                     ->label('Urgensi')
                     ->placeholder('Pilih Urgensi')
-                    ->options([1 => '1', 2 => '2', 3 => '3', 5 => '4']),
+                    ->options([1 => '1', 2 => '2', 3 => '3', 4 => '4', 5 => '5']),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
@@ -215,40 +223,7 @@ class TaskResource extends Resource
 
                 Tables\Actions\EditAction::make()
                     ->label('Ubah'),
-                ]);
-            // ->bulkActions([
-            //     Tables\Actions\BulkActionGroup::make([
-            //         Tables\Actions\BulkAction::make('update_status')
-            //             ->label('Perbarui Status')
-            //             ->icon('heroicon-o-pencil-square')
-            //             ->color('primary')
-            //             ->form([
-            //                 \Filament\Forms\Components\Select::make('status')
-            //                     ->label('Pilih Status Baru')
-            //                     ->options([
-            //                         'pending' => 'Menunggu',
-            //                         'in_progress' => 'Sedang Proses',
-            //                         'completed' => 'Selesai',
-            //                         'cancelled' => 'Batal',
-            //                     ])
-            //                     ->required(),
-            //             ])
-            //             ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data): void {
-            //                 foreach ($records as $record) {
-            //                     $updateData = ['status' => $data['status']];
-            //                     if ($data['status'] === 'completed') {
-            //                         $updateData['completed_at'] = now();
-            //                     } elseif ($data['status'] === 'cancelled') {
-            //                         $updateData['cancelled_at'] = now();
-            //                     }
-            //                     $record->update($updateData);
-            //                 }
-            //             })
-            //             ->deselectRecordsAfterCompletion(),
-                        
-            //         // Tables\Actions\DeleteBulkAction::make(),
-            //     ]),
-            // ]);
+            ]);
     }
 
     public static function infolist(Infolist $infolist): Infolist
@@ -257,14 +232,12 @@ class TaskResource extends Resource
             ->schema([
                 InfoSection::make('Informasi Utama')
                     ->schema([
-                        // Baris 1: Judul
                         TextEntry::make('title')
                             ->label('Judul Tugas')
                             ->weight('bold')
                             ->size(TextEntrySize::Large)
                             ->columnSpanFull(),
 
-                        // Baris 2: Deskripsi
                         TextEntry::make('description')
                             ->label('Deskripsi Tugas')
                             ->markdown()
@@ -278,12 +251,10 @@ class TaskResource extends Resource
                             TextEntry::make('urgency')
                                 ->label('Tingkat Urgensi')
                                 ->badge()
-                                ->formatStateUsing(fn (string $state): string => match ($state) {
-                                    '1' => '1. Rendah', '2' => '2. Normal', '3' => '3. Tinggi',
-                                    '4' => '4. Urgent', '5' => '4. Urgent', default => $state,
-                                })
+                                ->formatStateUsing(fn (string $state): string => $state)
                                 ->color(fn (string $state): string => match ($state) {
-                                    '1' => 'gray', '2' => 'info', '3' => 'warning', '4' => 'danger', '5' => 'danger', default => 'gray',
+                                    '1' => 'gray', '2' => 'info', '3' => 'warning',
+                                    '4' => 'danger', '5' => 'danger', default => 'gray',
                                 }),
 
                             TextEntry::make('deadline')
@@ -305,14 +276,17 @@ class TaskResource extends Resource
                                 ->label('Status Saat Ini')
                                 ->badge()
                                 ->formatStateUsing(fn (string $state): string => match ($state) {
-                                    'pending' => 'Menunggu',
-                                    'in_progress' => 'Sedang Diproses',
-                                    'completed' => 'Selesai',
-                                    'cancelled' => 'Batal',
-                                    default => $state,
+                                    'pending'     => 'Menunggu',
+                                    'in_progress' => 'Proses',
+                                    'completed'   => 'Selesai',
+                                    'cancelled'   => 'Batal',
+                                    default       => $state,
                                 })
                                 ->colors([
-                                    'gray' => 'pending', 'info' => 'in_progress', 'success' => 'completed', 'danger' => 'cancelled',
+                                    'gray'    => 'pending',
+                                    'info'    => 'in_progress',
+                                    'success' => 'completed',
+                                    'danger'  => 'cancelled',
                                 ]),
 
                             TextEntry::make('created_at')
@@ -346,20 +320,50 @@ class TaskResource extends Resource
                                     TextEntry::make('logbook.date')
                                         ->label('Tanggal')
                                         ->date('d M Y'),
+                                    TextEntry::make('user_name')
+                                        ->label('Pegawai')
+                                        ->getStateUsing(fn ($record) => $record->logbook?->user?->name ?? '-')
+                                        ->visible(fn ($record) => $record->task?->task_group_id !== null),
                                     TextEntry::make('activity')
                                         ->label('Deskripsi'),
                                     TextEntry::make('progress_change')
                                         ->label('Progress')
-                                        ->getStateUsing(fn ($record) => ($record->previous_progress ?? 0) . '% → ' . ($record->current_progress ?? 0) . '%')
+                                        ->getStateUsing(fn ($record) => $record->task_id
+                                            ? (($record->previous_progress ?? 0) . '% → ' . ($record->current_progress ?? 0) . '%')
+                                            : 'N/A'
+                                        )
                                         ->badge()
-                                        ->color(fn ($state) => str_contains($state, '100%') ? 'success' : 'primary'),
-                                    TextEntry::make('logbook.is_submitted')
-                                        ->label('Status')
-                                        ->formatStateUsing(fn ($state) => $state ? 'Final' : 'Draft')
+                                        ->color(fn ($state) => str_contains($state, '100%') ? 'success' : ($state === 'N/A' ? 'gray' : 'primary')),
+                                    TextEntry::make('task_status')
+                                        ->label('Status Tugas')
+                                        ->getStateUsing(fn ($record) => match($record->task?->status) {
+                                            'pending'     => 'Menunggu',
+                                            'in_progress' => 'Proses',
+                                            'completed'   => 'Selesai',
+                                            'cancelled'   => 'Batal',
+                                            default       => '-',
+                                        })
                                         ->badge()
-                                        ->color(fn ($state) => $state ? 'success' : 'gray'),
+                                        ->color(fn ($state) => match($state) {
+                                            'Menunggu' => 'gray',
+                                            'Proses'   => 'info',
+                                            'Selesai'  => 'success',
+                                            'Batal'    => 'danger',
+                                            default    => 'gray',
+                                        }),
                                 ]),
                             ])
+                            ->getStateUsing(function ($record) {
+                                // Jika ada task_group_id, ambil logbook items dari semua task dalam grup
+                                if ($record->task_group_id) {
+                                    $groupTaskIds = Task::where('task_group_id', $record->task_group_id)->pluck('id');
+                                    return \App\Models\LogbookItem::whereIn('task_id', $groupTaskIds)
+                                        ->with(['logbook.user', 'task'])
+                                        ->orderByDesc('created_at')
+                                        ->get();
+                                }
+                                return $record->logbookItems()->with(['logbook.user', 'task'])->orderByDesc('created_at')->get();
+                            })
                             ->placeholder('Belum ada catatan')
                             ->columns(1),
                     ]),
@@ -369,9 +373,9 @@ class TaskResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListTasks::route('/'),
+            'index'  => Pages\ListTasks::route('/'),
             'create' => Pages\CreateTask::route('/create'),
-            'edit' => Pages\EditTask::route('/{record}/edit'),
+            'edit'   => Pages\EditTask::route('/{record}/edit'),
         ];
     }
 }

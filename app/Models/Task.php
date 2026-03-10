@@ -11,6 +11,7 @@ class Task extends Model
     protected $fillable = [
         'user_id',
         'assigned_by',
+        'task_group_id',
         'title',
         'description',
         'notes',
@@ -43,9 +44,15 @@ class Task extends Model
         return $this->belongsTo(User::class, 'assigned_by');
     }
 
+    // Semua task dalam grup yang sama (ditugaskan bersamaan)
+    public function groupTasks(): HasMany
+    {
+        return $this->hasMany(Task::class, 'task_group_id', 'task_group_id');
+    }
+
     // Logbook Items terkait tugas ini
     public function logbookItems(): HasMany
     {
-        return $this->hasMany(LogbookItem::class);
+        return $this->hasMany(LogbookItem::class)->orderByDesc('created_at');
     }
 }

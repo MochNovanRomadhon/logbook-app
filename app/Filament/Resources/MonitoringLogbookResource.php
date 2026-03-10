@@ -237,21 +237,7 @@ public static function table(Table $table): Table
             
             Tables\Columns\TextColumn::make('items_count')->counts('items')->label('Jml Aktivitas')->badge()->color('info')->alignCenter(),
 
-            // [6] Kolom progress rata-rata
-            Tables\Columns\TextColumn::make('average_progress')
-                ->label('Rata-rata Progress')
-                ->getStateUsing(function (Logbook $record) {
-                    $items = $record->items;
-                    // Hanya hitung item yang memiliki tugas (bukan custom task) dan memiliki nilai progress
-                    $taskItems = $items->filter(fn($item) => $item->task_id !== null && $item->current_progress !== null);
-                    
-                    if ($taskItems->isEmpty()) return '-';
-                    
-                    $avg = $taskItems->avg('current_progress');
-                    return number_format($avg, 0) . '%';
-                })
-                ->badge()
-                ->color(fn(string $state) => $state === '100%' ? 'success' : ($state === '-' ? 'gray' : 'primary')),
+
         ])
         ->filters([
             // --- LOKASI KASCADING ---
