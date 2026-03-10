@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Task extends Model
 {
@@ -19,13 +20,15 @@ class Task extends Model
         'completed_at',
         'processed_at',
         'cancelled_at',
+        'accepted_at',
     ];
 
     protected $casts = [
-        'deadline' => 'date',           // Agar otomatis jadi object Carbon
+        'deadline' => 'date',
         'completed_at' => 'datetime',
         'processed_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'accepted_at' => 'datetime',
         'urgency' => 'integer',
     ];
 
@@ -35,9 +38,14 @@ class Task extends Model
         return $this->belongsTo(User::class);
     }
 
-    // Pemberi Task (Atasan/Pengawas) - Optional
     public function assigner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_by');
+    }
+
+    // Logbook Items terkait tugas ini
+    public function logbookItems(): HasMany
+    {
+        return $this->hasMany(LogbookItem::class);
     }
 }

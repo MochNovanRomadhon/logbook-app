@@ -6,10 +6,46 @@ use App\Filament\Resources\LogbookResource;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Notifications\Notification;
+use Carbon\Carbon;
 
 class EditLogbook extends EditRecord
 {
     protected static string $resource = LogbookResource::class;
+
+    public function mount(int|string $record): void
+    {
+        parent::mount($record);
+
+        $logbook = $this->record;
+
+        // Cek jika logbook belum difinalisasi dan tanggalnya sudah lewat dari hari ini
+        if (!$logbook->is_submitted && Carbon::parse($logbook->date)->isBefore(now()->startOfDay())) {
+
+            // 1. Kunci otomatis
+            $logbook->update(['is_submitted' => true]);
+
+            // 2. Jalankan logika update status task 100%
+            foreach ($logbook->items as $item) {
+                if ($item->task_id && $item->current_progress == 100) {
+                    \App\Models\Task::where('id', $item->task_id)->update([
+                        'status' => 'completed',
+                        'completed_at' => now(),
+                    ]);
+                }
+            }
+
+            // 3. Tampilkan notifikasi bahwa sistem otomatis mengunci
+            Notification::make()
+                ->title('Logbook Otomatis Difinalkan')
+                ->body('Logbook ini telah melewati batas hari pengerjaan dan otomatis dikunci oleh sistem.')
+                ->warning()
+                ->persistent()
+                ->send();
+
+            // 4. Redirect ulang halaman agar UI form (tombol save dll) ter-refresh dan terkunci
+            redirect($this->getResource()::getUrl('edit', ['record' => $logbook->id]));
+        }
+    }
 
     protected function getRedirectUrl(): string
     {
@@ -21,48 +57,48 @@ class EditLogbook extends EditRecord
         return [
             // Tombol Delete
             Actions\DeleteAction::make()
-                ->visible(fn () => !$this->record->is_submitted || auth()->user()->hasRole('super_admin')),
+            ->visible(fn() => !$this->record->is_submitted || auth()->user()->hasRole('super_admin')),
 
-            // TOMBOL FINALISASI
+            // TOMBOL FINALISASI MANUAL
             Actions\Action::make('finalize')
-                ->label('Finalisasi Logbook')
-                ->icon('heroicon-o-lock-closed')
-                ->color('success')
-                ->requiresConfirmation()
-                ->modalHeading('Finalisasi Logbook')
-                ->modalDescription('Setelah difinalisasi, logbook tidak dapat diedit kembali. Apakah Anda yakin?')
-                ->modalSubmitActionLabel('Ya, Finalisasi')
-                ->visible(fn () => !$this->record->is_submitted)
-                ->action(function () {
-                    $this->record->update(['is_submitted' => true]);
-                    
-                    // [7] Logika update status tugas 100%
-                    foreach ($this->record->items as $item) {
-                        if ($item->task_id && $item->current_progress == 100) {
-                            \App\Models\Task::where('id', $item->task_id)->update([
-                                'status' => 'completed',
-                                'completed_at' => now(),
-                            ]);
-                        }
-                    }
+            ->label('Finalisasi Logbook')
+            ->icon('heroicon-o-lock-closed')
+            ->color('success')
+            ->requiresConfirmation()
+            ->modalHeading('Finalisasi Logbook')
+            ->modalDescription('Setelah difinalisasi, logbook tidak dapat diedit kembali. Apakah Anda yakin?')
+            ->modalSubmitActionLabel('Ya, Finalisasi')
+            ->visible(fn() => !$this->record->is_submitted)
+            ->action(function () {
+            $this->record->update(['is_submitted' => true]);
 
-                    Notification::make()->title('Logbook Berhasil Difinalisasi')->success()->send();
-                    $this->redirect($this->getResource()::getUrl('edit', ['record' => $this->record]));
-                }),
+            // Logika update status tugas 100%
+            foreach ($this->record->items as $item) {
+                if ($item->task_id && $item->current_progress == 100) {
+                    \App\Models\Task::where('id', $item->task_id)->update([
+                            'status' => 'completed',
+                            'completed_at' => now(),
+                        ]);
+                }
+            }
+
+            Notification::make()->title('Logbook Berhasil Difinalisasi')->success()->send();
+            $this->redirect($this->getResource()::getUrl('edit', ['record' => $this->record]));
+        }),
         ];
     }
-    
+
     protected function getSaveFormAction(): Actions\Action
     {
         return Actions\Action::make('save')
             ->label('Simpan Perubahan')
             ->icon('heroicon-m-check')
             ->color('primary')
-            ->action(fn () => $this->save())
+            ->action(fn() => $this->save())
             ->keyBindings(['mod+s']);
     }
 
-    // 3. SEMBUNYIKAN TOMBOL SAVE JIKA SUDAH FINAL
+    // SEMBUNYIKAN TOMBOL SAVE JIKA SUDAH FINAL
     protected function getFormActions(): array
     {
         // Jika sudah submit, hilangkan tombol save (kosongkan array actions bawah)

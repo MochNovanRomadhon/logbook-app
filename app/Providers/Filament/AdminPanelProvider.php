@@ -30,8 +30,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('app')
-
-            // --- KONFIGURASI LOGIN ---
+            ->unsavedChangesAlerts()
             ->login(\App\Filament\Auth\CustomLogin::class)
             ->passwordReset()
             ->profile()

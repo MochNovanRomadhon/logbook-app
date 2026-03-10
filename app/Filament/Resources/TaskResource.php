@@ -56,7 +56,7 @@ class TaskResource extends Resource
                 Section::make()
                     ->schema([
                         Forms\Components\Select::make('user_ids')
-                            ->label('Pilih Pegawai')
+                            ->label('Ditugaskan ke')
                             ->options(function () {
                                 $currentUser = Auth::user();
                                 return User::query()
@@ -115,14 +115,6 @@ class TaskResource extends Resource
                             ->rows(3)
                             ->columnSpanFull()
                             ->disabled($isDisabled),
-
-                        // [BARU] Field Catatan
-                        Forms\Components\Textarea::make('notes')
-                            ->label('Catatan')
-                            ->rows(2)
-                            ->columnSpanFull()
-                            ->disabled($isDisabled)
-                            ->placeholder('Catatan tambahan terkait pengerjaan tugas...'),
                     ])
             ]);
     }
@@ -209,7 +201,7 @@ class TaskResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->placeholder('Pilih Status')
-                    ->options(['pending'=>'Pending', 'in_progress'=>'Proses', 'completed'=>'Selesai', 'cancelled'=>'Batal']),
+                    ->options(['pending'=>'Menunggu', 'in_progress'=>'Proses', 'completed'=>'Selesai', 'cancelled'=>'Batal']),
                 
                 Tables\Filters\SelectFilter::make('urgency')
                     ->label('Urgensi')
@@ -217,20 +209,6 @@ class TaskResource extends Resource
                     ->options([1 => '1', 2 => '2', 3 => '3', 5 => '4']),
             ])
             ->actions([
-                Tables\Actions\Action::make('add_note')
-                    ->label('Catatan')
-                    ->icon('heroicon-o-document-text')
-                    ->color('secondary')
-                    ->form([
-                        \Filament\Forms\Components\Textarea::make('notes')
-                            ->label('Catatan Tambahan')
-                            ->rows(3)
-                            ->default(fn (\App\Models\Task $record) => $record->notes),
-                    ])
-                    ->action(function (\App\Models\Task $record, array $data): void {
-                        $record->update(['notes' => $data['notes']]);
-                    }),
-
                 Tables\Actions\ViewAction::make()
                     ->label('Lihat Detail')
                     ->modalHeading('Rincian Tugas'),
@@ -318,12 +296,6 @@ class TaskResource extends Resource
                                 ->color('gray')
                                 ->placeholder('Inisiatif Sendiri'),
                         ]),
-
-                        TextEntry::make('notes')
-                            ->label('Catatan Tambahan')
-                            ->markdown()
-                            ->placeholder('Tidak ada catatan.')
-                            ->columnSpanFull(),
                     ]),
 
                 InfoSection::make('Status & Riwayat Waktu')
@@ -354,12 +326,43 @@ class TaskResource extends Resource
                                 ->placeholder('-'),
                             
                             TextEntry::make('completed_at')
-                                ->label('Selesai / Dibatalkan')
-                                ->getStateUsing(fn(\App\Models\Task $record) => $record->completed_at ?? $record->cancelled_at)
+                                ->label('Tanggal Selesai')
+                                ->date('d F Y H:i')
+                                ->placeholder('-'),
+
+                            TextEntry::make('cancelled_at')
+                                ->label('Tanggal Dibatalkan')
                                 ->date('d F Y H:i')
                                 ->placeholder('-'),
                         ]),
                     ])->collapsed(),
+
+                InfoSection::make('Catatan')
+                    ->schema([
+                        \Filament\Infolists\Components\RepeatableEntry::make('logbookItems')
+                            ->label('')
+                            ->schema([
+                                InfoGrid::make(4)->schema([
+                                    TextEntry::make('logbook.date')
+                                        ->label('Tanggal')
+                                        ->date('d M Y'),
+                                    TextEntry::make('activity')
+                                        ->label('Deskripsi'),
+                                    TextEntry::make('progress_change')
+                                        ->label('Progress')
+                                        ->getStateUsing(fn ($record) => ($record->previous_progress ?? 0) . '% → ' . ($record->current_progress ?? 0) . '%')
+                                        ->badge()
+                                        ->color(fn ($state) => str_contains($state, '100%') ? 'success' : 'primary'),
+                                    TextEntry::make('logbook.is_submitted')
+                                        ->label('Status')
+                                        ->formatStateUsing(fn ($state) => $state ? 'Final' : 'Draft')
+                                        ->badge()
+                                        ->color(fn ($state) => $state ? 'success' : 'gray'),
+                                ]),
+                            ])
+                            ->placeholder('Belum ada catatan')
+                            ->columns(1),
+                    ]),
             ]);
     }
 

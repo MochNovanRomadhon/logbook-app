@@ -62,7 +62,7 @@ class LogbookResource extends Resource
                                     DatePicker::make('date')
                                         ->label('Tanggal Laporan')
                                         ->default(now())
-                                        // [3] Cegah logbook ganda per hari
+                                        ->maxDate(now())
                                         ->unique(ignoreRecord: true, modifyRuleUsing: fn (\Illuminate\Validation\Rules\Unique $rule) => $rule->where('user_id', Auth::id()))
                                         ->required(),
                                     

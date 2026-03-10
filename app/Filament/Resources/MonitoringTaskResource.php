@@ -66,8 +66,8 @@ class MonitoringTaskResource extends Resource
                             Forms\Components\Select::make('urgency')
                                 ->label('Tingkat Urgensi')
                                 ->options([
-                                    1 => '1. Rendah', 2 => '2. Normal', 3 => '3. Tinggi', 
-                                    4 => '4. Sangat Tinggi', 5 => '5. Urgent'
+                                    1 => '1', 2 => '2', 3 => '3', 
+                                    5 => '4'
                                 ])
                                 ->required()
                                 ->default(2)
@@ -239,7 +239,7 @@ class MonitoringTaskResource extends Resource
 
             Tables\Filters\SelectFilter::make('status')
                 ->placeholder('Pilih Status')
-                ->options(['pending'=>'Pending', 'in_progress'=>'Proses', 'completed'=>'Selesai', 'cancelled'=>'Batal'])
+                ->options(['pending'=>'Menunggu', 'in_progress'=>'Proses', 'completed'=>'Selesai', 'cancelled'=>'Batal'])
                 ->columnSpan(3),
 
             Tables\Filters\SelectFilter::make('urgency')
@@ -267,18 +267,17 @@ class MonitoringTaskResource extends Resource
         ->filtersApplyAction(fn (\Filament\Tables\Actions\Action $action) => $action->hidden())
 
         ->actions([
-            Tables\Actions\Action::make('add_note')
-                ->label('Catatan')
-                ->icon('heroicon-o-document-text')
-                ->color('secondary')
-                ->form([
-                    \Filament\Forms\Components\Textarea::make('notes')
-                        ->label('Catatan Tambahan')
-                        ->rows(3)
-                        ->default(fn (\App\Models\Task $record) => $record->notes),
-                ])
-                ->action(function (\App\Models\Task $record, array $data): void {
-                    $record->update(['notes' => $data['notes']]);
+            Tables\Actions\Action::make('accept_task')
+                ->label('Terima')
+                ->icon('heroicon-o-check-badge')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalHeading('Konfirmasi Penerimaan Tugas')
+                ->modalDescription('Anda yakin ingin menerima dan menyetujui tugas ini?')
+                ->modalSubmitActionLabel('Ya, Terima')
+                ->visible(fn (\App\Models\Task $record): bool => $record->status === 'completed' && !$record->accepted_at)
+                ->action(function (\App\Models\Task $record): void {
+                    $record->update(['accepted_at' => now()]);
                 }),
 
             Tables\Actions\ViewAction::make()
@@ -367,12 +366,6 @@ class MonitoringTaskResource extends Resource
                                 ->label('Pemilik Tugas (Sub Unit)')
                                 ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
                         ]),
-
-                        TextEntry::make('notes')
-                            ->label('Catatan Tambahan')
-                            ->markdown()
-                            ->placeholder('Tidak ada catatan.')
-                            ->columnSpanFull(),
                     ]),
 
                 InfoSection::make('Status & Riwayat Waktu')
@@ -403,12 +396,48 @@ class MonitoringTaskResource extends Resource
                                 ->placeholder('-'),
                             
                             TextEntry::make('completed_at')
-                                ->label('Selesai / Dibatalkan')
-                                ->getStateUsing(fn(\App\Models\Task $record) => $record->completed_at ?? $record->cancelled_at)
+                                ->label('Tanggal Selesai')
+                                ->date('d F Y H:i')
+                                ->placeholder('-'),
+
+                            TextEntry::make('cancelled_at')
+                                ->label('Tanggal Dibatalkan')
+                                ->date('d F Y H:i')
+                                ->placeholder('-'),
+
+                            TextEntry::make('accepted_at')
+                                ->label('Tanggal Diterima')
                                 ->date('d F Y H:i')
                                 ->placeholder('-'),
                         ]),
                     ])->collapsed(),
+
+                InfoSection::make('Catatan')
+                    ->schema([
+                        \Filament\Infolists\Components\RepeatableEntry::make('logbookItems')
+                            ->label('')
+                            ->schema([
+                                InfoGrid::make(4)->schema([
+                                    TextEntry::make('logbook.date')
+                                        ->label('Tanggal')
+                                        ->date('d M Y'),
+                                    TextEntry::make('activity')
+                                        ->label('Deskripsi'),
+                                    TextEntry::make('progress_change')
+                                        ->label('Progress')
+                                        ->getStateUsing(fn ($record) => ($record->previous_progress ?? 0) . '% → ' . ($record->current_progress ?? 0) . '%')
+                                        ->badge()
+                                        ->color(fn ($state) => str_contains($state, '100%') ? 'success' : 'primary'),
+                                    TextEntry::make('logbook.is_submitted')
+                                        ->label('Status')
+                                        ->formatStateUsing(fn ($state) => $state ? 'Final' : 'Draft')
+                                        ->badge()
+                                        ->color(fn ($state) => $state ? 'success' : 'gray'),
+                                ]),
+                            ])
+                            ->placeholder('Belum ada catatan')
+                            ->columns(1),
+                    ]),
             ]);
     }
 
