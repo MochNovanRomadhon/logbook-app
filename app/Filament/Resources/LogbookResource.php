@@ -124,9 +124,18 @@ class LogbookResource extends Resource
                                                 })
                                                 ->required()
                                                 ->reactive()
-                                                ->afterStateUpdated(function ($state, callable $set) {
+                                                ->afterStateUpdated(function ($state, callable $set, Get $get) {
                                                     if ($state && $state !== 'other') {
-                                                        $lastLog = \App\Models\LogbookItem::where('task_id', $state)->latest()->first();
+                                                        $date = $get('../../date') ?? now()->format('Y-m-d');
+                                                        $lastLog = \App\Models\LogbookItem::where('task_id', $state)
+                                                            ->whereHas('logbook', function ($query) use ($date) {
+                                                                $query->where('date', '<', $date);
+                                                            })
+                                                            ->join('logbooks', 'logbooks.id', '=', 'logbook_items.logbook_id')
+                                                            ->orderByDesc('logbooks.date')
+                                                            ->orderByDesc('logbook_items.id')
+                                                            ->select('logbook_items.*')
+                                                            ->first();
                                                         $set('previous_progress', $lastLog ? $lastLog->current_progress : 0);
                                                     } else {
                                                         $set('previous_progress', 0);

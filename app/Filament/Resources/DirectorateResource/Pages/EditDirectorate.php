@@ -18,11 +18,10 @@ class EditDirectorate extends EditRecord
             ->first();
 
         if ($existing) {
-            $status = $existing->is_active ? 'Aktif' : 'Tidak Aktif';
             \Filament\Notifications\Notification::make()
                 ->danger()
-                ->title('Gagal Menyimpan')
-                ->body("{$name} sudah tersimpan dengan status {$status}.")
+                ->title('Data Duplikat')
+                ->body('Direktorat dengan nama "' . $name . '" sudah ada. Gunakan nama yang berbeda.')
                 ->persistent()
                 ->send();
 

@@ -80,7 +80,7 @@ class TaskResource extends Resource
                             ->disabled()
                             ->dehydrated(false)
                             ->formatStateUsing(fn ($record) => $record?->assigner?->name ?? '-')
-                            ->visible(fn ($record) => !Auth::user()->hasRole('pengawas') && $record?->assigned_by !== null)
+                            ->visible(fn ($record) => !Auth::user()->hasRole('pengawas') && $record?->assigned_by !== null && $record?->assigned_by !== $record?->user_id)
                             ->columnSpanFull(),
 
                         Forms\Components\TextInput::make('title')
@@ -185,6 +185,12 @@ class TaskResource extends Resource
                 Tables\Columns\TextColumn::make('assigner.name')
                     ->label('Ditugaskan Oleh')
                     ->placeholder('Inisiatif Sendiri')
+                    ->getStateUsing(function (\App\Models\Task $record) {
+                        if ($record->assigned_by === $record->user_id) {
+                            return null;
+                        }
+                        return $record->assigner?->name;
+                    })
                     ->toggleable(isToggledHiddenByDefault: true),
                  
                 // Status (read-only)
@@ -265,7 +271,26 @@ class TaskResource extends Resource
                                 ->label('Ditugaskan Oleh')
                                 ->badge()
                                 ->color('gray')
+                                ->getStateUsing(function (\App\Models\Task $record) {
+                                    if ($record->assigned_by === $record->user_id) {
+                                        return null;
+                                    }
+                                    return $record->assigner?->name;
+                                })
                                 ->placeholder('Inisiatif Sendiri'),
+
+                            TextEntry::make('assigned_to')
+                                ->label('Ditugaskan Kepada')
+                                ->badge()
+                                ->color('primary')
+                                ->getStateUsing(function (\App\Models\Task $record) {
+                                    if ($record->task_group_id) {
+                                        $userIds = \App\Models\Task::where('task_group_id', $record->task_group_id)->pluck('user_id');
+                                        return \App\Models\User::whereIn('id', $userIds)->pluck('name')->implode(', ');
+                                    }
+                                    return $record->user?->name ?? '-';
+                                })
+                                ->columnSpanFull(),
                         ]),
                     ]),
 
@@ -358,11 +383,20 @@ class TaskResource extends Resource
                                 if ($record->task_group_id) {
                                     $groupTaskIds = Task::where('task_group_id', $record->task_group_id)->pluck('id');
                                     return \App\Models\LogbookItem::whereIn('task_id', $groupTaskIds)
+                                        ->join('logbooks', 'logbooks.id', '=', 'logbook_items.logbook_id')
+                                        ->orderByDesc('logbooks.date')
+                                        ->orderByDesc('logbook_items.created_at')
+                                        ->select('logbook_items.*')
                                         ->with(['logbook.user', 'task'])
-                                        ->orderByDesc('created_at')
                                         ->get();
                                 }
-                                return $record->logbookItems()->with(['logbook.user', 'task'])->orderByDesc('created_at')->get();
+                                return $record->logbookItems()
+                                    ->join('logbooks', 'logbooks.id', '=', 'logbook_items.logbook_id')
+                                    ->orderByDesc('logbooks.date')
+                                    ->orderByDesc('logbook_items.created_at')
+                                    ->select('logbook_items.*')
+                                    ->with(['logbook.user', 'task'])
+                                    ->get();
                             })
                             ->placeholder('Belum ada catatan')
                             ->columns(1),

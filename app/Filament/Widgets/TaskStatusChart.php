@@ -43,10 +43,10 @@ class TaskStatusChart extends ChartWidget
 
         // Mapping Data agar urutan warna sesuai
         $counts = [
-            'Batal'   => $dataRaw['Batal'] ?? $dataRaw['canceled'] ?? 0,
-            'Belum'   => $dataRaw['Belum'] ?? $dataRaw['pending'] ?? 0,
-            'Sedang'  => $dataRaw['Sedang'] ?? $dataRaw['in_progress'] ?? 0,
-            'Selesai' => $dataRaw['Selesai'] ?? $dataRaw['completed'] ?? 0,
+            'Menunggu' => $dataRaw['pending'] ?? 0,
+            'Proses'   => $dataRaw['in_progress'] ?? 0,
+            'Selesai'  => $dataRaw['completed'] ?? 0,
+            'Batal'    => $dataRaw['canceled'] ?? 0,
         ];
 
         return [
@@ -54,7 +54,7 @@ class TaskStatusChart extends ChartWidget
                 [
                     'label' => 'Jumlah Tugas',
                     'data' => array_values($counts),
-                    'backgroundColor' => ['#fbbf24', '#818cf8', '#f87171', '#22d3ee'],
+                    'backgroundColor' => ['#f59e0b', '#3b82f6', '#10b981', '#ef4444'],
                     'borderColor' => '#ffffff',
                     'borderWidth' => 2,
                     'hoverOffset' => 10, // Efek membesar sedikit saat di-hover

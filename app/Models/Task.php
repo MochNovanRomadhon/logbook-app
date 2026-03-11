@@ -55,4 +55,26 @@ class Task extends Model
     {
         return $this->hasMany(LogbookItem::class)->orderByDesc('created_at');
     }
+
+    protected static function booted()
+    {
+        static::updating(function ($task) {
+            if ($task->isDirty('status')) {
+                $now = now();
+                $newStatus = $task->status;
+
+                if ($newStatus === 'in_progress') {
+                    $task->processed_at = $now;
+                    $task->cancelled_at = null; // tanggal dibatalkan jadi hilang
+                } elseif ($newStatus === 'completed') {
+                    $task->completed_at = $now;
+                    if (!$task->processed_at) {
+                        $task->processed_at = $now; // misal dari menunggu langsung selesai
+                    }
+                } elseif ($newStatus === 'cancelled') {
+                    $task->cancelled_at = $now;
+                }
+            }
+        });
+    }
 }

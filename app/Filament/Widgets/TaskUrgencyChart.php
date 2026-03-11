@@ -56,7 +56,7 @@ class TaskUrgencyChart extends ChartWidget
                     'barThickness' => 25,
                 ],
             ],
-            'labels' => ['Rendah (1)', 'Normal (2)', 'Sedang (3)', 'Tinggi (4)', 'Kritis (5)'],
+            'labels' => ['1', '2', '3', '4', '5'],
         ];
     }
 

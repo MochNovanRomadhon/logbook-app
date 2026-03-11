@@ -4,22 +4,20 @@ namespace App\Filament\Widgets;
 
 use Filament\Widgets\ChartWidget;
 use Filament\Widgets\Concerns\InteractsWithPageFilters;
-use App\Models\Task;
+use App\Models\Logbook;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Flowframe\Trend\Trend;
-use Flowframe\Trend\TrendValue;
 use Carbon\Carbon;
 
-class TaskCompletionChart extends ChartWidget
+class LogbookWorkChart extends ChartWidget
 {
     use InteractsWithPageFilters;
 
-    protected static ?string $heading = 'Statistik Tugas';
+    protected static ?string $heading = 'Statistik Pengerjaan';
     protected static bool $isLazy = true;
     protected int | string | array $columnSpan = 'full';
     protected static ?string $maxHeight = '300px';
-    protected static ?int $sort = 1;
+    protected static ?int $sort = 2;
 
     public static function canView(): bool
     {
@@ -31,46 +29,28 @@ class TaskCompletionChart extends ChartWidget
         return Auth::user()->hasRole('pengawas') ? 'bar' : 'line';
     }
 
-    // --- 1. JUDUL DINAMIS (Memberi info status filter) ---
     public function getHeading(): ?string
     {
         $user = Auth::user();
         if ($user->hasRole('pengawas')) {
             $filters = $this->filters;
-            // Jika Sub Unit belum dipilih, judulnya memberi petunjuk
             if (empty($filters['subunit_id'])) {
                 return 'Menunggu Filter Sub Unit...';
             }
         }
-        return 'Statistik Tugas';
+        return 'Statistik Pengerjaan';
     }
 
-    // --- 2. DESKRIPSI (Instruksi Jelas) ---
     public function getDescription(): ?string
     {
         $user = Auth::user();
         if ($user->hasRole('pengawas')) {
             $filters = $this->filters;
-            // Jika Sub Unit belum dipilih, beri instruksi
             if (empty($filters['subunit_id'])) {
                 return 'Mohon pilih Direktorat > Unit > Sub Unit untuk menampilkan data.';
             }
         }
-        return null;
-    }
-
-    // --- 3. FILTER STATUS TASK ---
-    public ?string $filter = 'completed'; // Default filter
-
-    protected function getFilters(): ?array
-    {
-        return [
-            '' => 'Semua Status',
-            'pending' => 'Menunggu',
-            'in_progress' => 'Proses',
-            'completed' => 'Selesai',
-            'canceled' => 'Batal',
-        ];
+        return 'Jumlah pengerjaan tugas berdasarkan logbook per hari';
     }
 
     protected function getData(): array
@@ -78,46 +58,48 @@ class TaskCompletionChart extends ChartWidget
         $user = Auth::user();
         $filters = $this->filters;
 
-        $startDate = $filters['startDate'] ?? now()->startOfWeek();
-        $endDate = $filters['endDate'] ?? now()->endOfWeek();
+        $startDate = Carbon::parse($filters['startDate'] ?? now()->startOfWeek())->startOfDay();
+        $endDate = Carbon::parse($filters['endDate'] ?? now()->endOfWeek())->endOfDay();
 
         // ==========================================
-        // LOGIKA PEGAWAI (Tetap Sama / Tidak Berubah)
+        // LOGIKA PEGAWAI
         // ==========================================
         if (! $user->hasRole('pengawas')) {
-            $taskQuery = Task::query()->where('user_id', $user->id);
+            $logbooks = Logbook::withCount('items')
+                ->where('user_id', $user->id)
+                ->whereBetween('date', [$startDate, $endDate])
+                ->get()
+                ->keyBy(fn ($l) => Carbon::parse($l->date)->format('Y-m-d'));
+
+            $period = \Carbon\CarbonPeriod::create($startDate, $endDate);
             
-            if (!empty($this->filter)) {
-                $taskQuery->where('status', $this->filter);
+            $labels = [];
+            $dataPoints = [];
+            
+            foreach ($period as $date) {
+                $dateString = $date->format('Y-m-d');
+                $labels[] = $date->format('d M');
+                $dataPoints[] = isset($logbooks[$dateString]) ? $logbooks[$dateString]->items_count : 0;
             }
 
-            $data = Trend::query($taskQuery)
-                ->dateColumn('deadline')
-                ->between(
-                    start: Carbon::parse($startDate)->startOfDay(),
-                    end: Carbon::parse($endDate)->endOfDay(),
-                )
-                ->perDay()
-                ->count();
-            
             return [
                 'datasets' => [
                     [
-                        'label' => 'Jumlah Tugas Harian',
-                        'data' => $data->map(fn (TrendValue $value) => $value->aggregate),
-                        'borderColor' => '#6366f1',
-                        'backgroundColor' => ['rgba(99, 102, 241, 0.3)'],
+                        'label' => 'Total Pengerjaan Tugas',
+                        'data' => $dataPoints,
+                        'borderColor' => '#10b981',
+                        'backgroundColor' => ['rgba(16, 185, 129, 0.3)'],
                         'fill' => [
                             'target' => 'origin',
-                            'above' => 'rgba(99, 102, 241, 0.15)',
+                            'above' => 'rgba(16, 185, 129, 0.15)',
                         ],
                         'tension' => 0.4,
                         'pointRadius' => 5,
                         'pointHoverRadius' => 8,
-                        'pointBackgroundColor' => '#6366f1',
+                        'pointBackgroundColor' => '#10b981',
                         'pointBorderColor' => '#ffffff',
                         'pointBorderWidth' => 2,
-                        'pointHoverBackgroundColor' => '#4f46e5',
+                        'pointHoverBackgroundColor' => '#059669',
                         'pointHoverBorderColor' => '#ffffff',
                         'pointHoverBorderWidth' => 3,
                         'borderWidth' => 3,
@@ -125,16 +107,13 @@ class TaskCompletionChart extends ChartWidget
                         'borderJoinStyle' => 'round',
                     ],
                 ],
-                'labels' => $data->map(fn (TrendValue $value) => Carbon::parse($value->date)->format('d M')),
+                'labels' => $labels,
             ];
         }
 
         // ==========================================
-        // LOGIKA PENGAWAS (UBAHAN DISINI)
+        // LOGIKA PENGAWAS
         // ==========================================
-        
-        // SYARAT: Jika Sub Unit KOSONG, kembalikan grafik KOSONG.
-        // (Tidak peduli apakah Direktorat atau Unit sudah dipilih atau belum)
         if (empty($filters['subunit_id'])) {
             return [
                 'datasets' => [],
@@ -142,67 +121,28 @@ class TaskCompletionChart extends ChartWidget
             ];
         }
 
-        // Ambil status dari filter chart (bukan filter global)
-        $statusFilter = $this->filter;
-
-        // Tentukan Label Grafik berdasarkan status
-        $chartLabel = match ($statusFilter) {
-            'pending' => 'Total Tugas Menunggu',
-            'in_progress' => 'Total Tugas Proses',
-            'completed' => 'Total Tugas Selesai',
-            'canceled' => 'Total Tugas Batal',
-            default => 'Total Semua Tugas',
-        };
-
-        // Tentukan Warna Grafik berdasarkan status
-        $colors = match ($statusFilter) {
-            'pending' => [
-                'bg' => '#f59e0b', // Amber-500
-                'border' => '#d97706', // Amber-600
-            ],
-            'in_progress' => [
-                'bg' => '#3b82f6', // Blue-500
-                'border' => '#2563eb', // Blue-600
-            ],
-            'completed' => [
-                'bg' => '#10b981', // Emerald-500
-                'border' => '#059669', // Emerald-600
-            ],
-            'canceled' => [
-                'bg' => '#ef4444', // Red-500
-                'border' => '#dc2626', // Red-600
-            ],
-            default => [ // Jika "Semua Status"
-                'bg' => '#6366f1', // Indigo-500
-                'border' => '#4f46e5', // Indigo-600
-            ],
-        };
-
-        // Jika sampai sini, berarti Sub Unit SUDAH dipilih.
-        // Jalankan query khusus untuk Sub Unit tersebut.
         $employees = User::query()
+            ->select('users.*')
+            ->selectRaw('(
+                SELECT COUNT(li.id)
+                FROM logbooks l
+                JOIN logbook_items li ON l.id = li.logbook_id
+                WHERE l.user_id = users.id
+                AND l.date BETWEEN ? AND ?
+            ) as items_count', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
             ->whereHas('roles', fn($q) => $q->where('name', 'pegawai'))
-            ->where('subunit_id', $filters['subunit_id']) // Filter Sub Unit
-            ->withCount(['tasks' => function ($query) use ($startDate, $endDate, $statusFilter) {
-                // Filter Tanggal
-                $query->whereBetween('deadline', [$startDate, $endDate]);
-                
-                // Filter Status (Jika ada)
-                if (! empty($statusFilter)) {
-                    $query->where('status', $statusFilter);
-                }
-            }])
-            ->orderByDesc('tasks_count')
+            ->where('subunit_id', $filters['subunit_id'])
+            ->orderByDesc('items_count')
             ->limit(20)
             ->get();
 
         return [
             'datasets' => [
                 [
-                    'label' => $chartLabel,
-                    'data' => $employees->pluck('tasks_count'),
-                    'backgroundColor' => $colors['bg'],
-                    'borderColor' => $colors['border'],
+                    'label' => 'Total Pengerjaan Tugas',
+                    'data' => $employees->pluck('items_count'),
+                    'backgroundColor' => '#10b981', 
+                    'borderColor' => '#059669', 
                     'borderWidth' => 1,
                     'borderRadius' => 4,
                     'barThickness' => 30,

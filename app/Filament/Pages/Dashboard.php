@@ -30,6 +30,7 @@ use App\Filament\Widgets\DashboardEmptyDataWidget;
 use App\Filament\Widgets\TaskCompletionChart; 
 use App\Filament\Widgets\TaskUrgencyChart; 
 use App\Filament\Widgets\TaskStatusChart; 
+use App\Filament\Widgets\LogbookWorkChart;
 
 class Dashboard extends BaseDashboard
 {
@@ -50,8 +51,8 @@ class Dashboard extends BaseDashboard
     public function resetFilters(): void
     {
         $this->data = [
-            'startDate' => now()->startOfMonth(),
-            'endDate' => now()->endOfMonth(),
+            'startDate' => now()->startOfWeek(),
+            'endDate' => now()->endOfWeek(),
             'directorate_id' => null,
             'unit_id' => null,
             'subunit_id' => null,
@@ -180,10 +181,10 @@ Grid::make(3)
 
         // Terapkan Filter
         if (isset($this->filters['startDate'])) {
-            $query->whereDate('created_at', '>=', $this->filters['startDate']);
+            $query->whereDate('deadline', '>=', $this->filters['startDate']);
         }
         if (isset($this->filters['endDate'])) {
-            $query->whereDate('created_at', '<=', $this->filters['endDate']);
+            $query->whereDate('deadline', '<=', $this->filters['endDate']);
         }
 
         if (!empty($this->filters['subunit_id'])) {
@@ -202,6 +203,7 @@ Grid::make(3)
         // Jika data ada
         return [
             TaskCompletionChart::class,
+            LogbookWorkChart::class,
             TaskUrgencyChart::class,
             TaskStatusChart::class,
         ];

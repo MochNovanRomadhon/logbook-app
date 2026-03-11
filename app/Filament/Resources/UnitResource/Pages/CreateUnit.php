@@ -20,11 +20,10 @@ class CreateUnit extends CreateRecord
             ->first();
 
         if ($existing) {
-            $status = $existing->is_active ? 'Aktif' : 'Tidak Aktif';
             \Filament\Notifications\Notification::make()
                 ->danger()
-                ->title('Gagal Menyimpan')
-                ->body("{$name} sudah tersimpan pada Direktorat ini dengan status {$status}.")
+                ->title('Data Duplikat')
+                ->body('Unit dengan nama "' . $name . '" sudah ada. Gunakan nama yang berbeda.')
                 ->persistent()
                 ->send();
 
