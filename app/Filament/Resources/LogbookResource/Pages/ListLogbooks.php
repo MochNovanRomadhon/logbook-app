@@ -51,8 +51,16 @@ class ListLogbooks extends ListRecords
 
     protected function getHeaderActions(): array
     {
+        // Cek apakah user sudah punya logbook untuk hari ini
+        $hasLogbookToday = \App\Models\Logbook::where('user_id', \Illuminate\Support\Facades\Auth::id())
+            ->whereDate('date', now()->format('Y-m-d'))
+            ->exists();
+
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()
+                ->label($hasLogbookToday ? 'Logbook Hari Ini Sudah Dibuat' : 'Buat Logbook')
+                ->disabled($hasLogbookToday)
+                ->tooltip($hasLogbookToday ? 'Anda hanya dapat membuat satu logbook per hari.' : null),
         ];
     }
 

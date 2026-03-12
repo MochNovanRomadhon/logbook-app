@@ -62,8 +62,8 @@ class LogbookResource extends Resource
                                     DatePicker::make('date')
                                         ->label('Tanggal Laporan')
                                         ->default(now())
-                                        ->maxDate(now())
-                                        ->unique(ignoreRecord: true, modifyRuleUsing: fn (\Illuminate\Validation\Rules\Unique $rule) => $rule->where('user_id', Auth::id()))
+                                        ->disabled()
+                                        ->dehydrated()
                                         ->required(),
                                     
                                     TextInput::make('status_display')
