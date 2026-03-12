@@ -29,8 +29,8 @@ class LogbookItem extends Model
                 $logbookDate = $item->logbook->date ?? \App\Models\Logbook::find($item->logbook_id)?->date;
                 
                 if ($logbookDate) {
-                    $previousItem = self::where('task_id', $item->task_id)
-                        ->where('id', '!=', $item->id ?? 0)
+                    $previousItem = self::where('logbook_items.task_id', $item->task_id)
+                        ->where('logbook_items.id', '!=', $item->id ?? 0)
                         ->whereHas('logbook', function ($query) use ($logbookDate) {
                             $query->where('date', '<', $logbookDate);
                         })
@@ -50,8 +50,8 @@ class LogbookItem extends Model
                 $logbookDate = $item->logbook->date ?? \App\Models\Logbook::find($item->logbook_id)?->date;
                 
                 if ($logbookDate) {
-                    $nextItem = self::where('task_id', $item->task_id)
-                        ->where('id', '!=', $item->id)
+                    $nextItem = self::where('logbook_items.task_id', $item->task_id)
+                        ->where('logbook_items.id', '!=', $item->id)
                         ->whereHas('logbook', function ($query) use ($logbookDate) {
                             $query->where('date', '>', $logbookDate);
                         })
@@ -75,8 +75,8 @@ class LogbookItem extends Model
                 $logbookDate = $item->logbook->date ?? \App\Models\Logbook::find($item->logbook_id)?->date;
                 
                 if ($logbookDate) {
-                    $previousItem = self::where('task_id', $item->task_id)
-                        ->where('id', '!=', $item->id)
+                    $previousItem = self::where('logbook_items.task_id', $item->task_id)
+                        ->where('logbook_items.id', '!=', $item->id)
                         ->whereHas('logbook', function ($query) use ($logbookDate) {
                             $query->where('date', '<', $logbookDate);
                         })
@@ -86,8 +86,8 @@ class LogbookItem extends Model
                         ->select('logbook_items.*')
                         ->first();
 
-                    $nextItem = self::where('task_id', $item->task_id)
-                        ->where('id', '!=', $item->id)
+                    $nextItem = self::where('logbook_items.task_id', $item->task_id)
+                        ->where('logbook_items.id', '!=', $item->id)
                         ->whereHas('logbook', function ($query) use ($logbookDate) {
                             $query->where('date', '>', $logbookDate);
                         })

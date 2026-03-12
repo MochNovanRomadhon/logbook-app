@@ -3,12 +3,17 @@
 namespace App\Filament\Widgets;
 
 use Filament\Widgets\ChartWidget;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use App\Models\Task;
 use Illuminate\Support\Facades\Auth;
 use Filament\Support\RawJs;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 class TaskStatusChart extends ChartWidget
 {
+    use InteractsWithPageFilters;
+
     protected static ?int $sort = 2;
     protected static bool $isLazy = true;
     protected static ?string $maxHeight = '300px';
@@ -32,14 +37,23 @@ class TaskStatusChart extends ChartWidget
     protected function getData(): array
     {
         $user = Auth::user();
+        $filters = $this->filters;
 
-        // Ambil data dari database
-        $dataRaw = Task::query()
-            ->where('user_id', $user->id)
-            ->selectRaw('status, count(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
+        $startDate = Carbon::parse($filters['startDate'] ?? now()->startOfWeek())->startOfDay();
+        $endDate = Carbon::parse($filters['endDate'] ?? now()->endOfWeek())->endOfDay();
+
+        $cacheKey = "task_status_{$user->id}_{$startDate->format('Y-m-d')}_{$endDate->format('Y-m-d')}";
+
+        // Ambil data dari database dengan filter tanggal dan cache
+        $dataRaw = Cache::remember($cacheKey, now()->addMinutes(15), function () use ($user, $startDate, $endDate) {
+            return Task::query()
+                ->where('user_id', $user->id)
+                ->whereBetween('deadline', [$startDate, $endDate])
+                ->selectRaw('status, count(*) as count')
+                ->groupBy('status')
+                ->pluck('count', 'status')
+                ->toArray();
+        });
 
         // Mapping Data agar urutan warna sesuai
         $counts = [

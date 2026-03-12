@@ -74,13 +74,12 @@ class TaskResource extends Resource
                             ->visible(fn () => Auth::user()->hasRole('pengawas'))
                             ->columnSpanFull(),
 
-                        // Ditugaskan Oleh (hanya tampil untuk pegawai, read-only)
                         Forms\Components\TextInput::make('assigner_name_display')
                             ->label('Ditugaskan Oleh')
                             ->disabled()
                             ->dehydrated(false)
                             ->formatStateUsing(fn ($record) => $record?->assigner?->name ?? '-')
-                            ->visible(fn ($record) => !Auth::user()->hasRole('pengawas') && $record?->assigned_by !== null && $record?->assigned_by !== $record?->user_id)
+                            ->visible(fn ($record) => !Auth::user()->hasRole('pengawas') && $record?->assigned_by !== null)
                             ->columnSpanFull(),
 
                         Forms\Components\TextInput::make('title')
@@ -184,12 +183,8 @@ class TaskResource extends Resource
                 // Kolom "Ditugaskan Oleh"
                 Tables\Columns\TextColumn::make('assigner.name')
                     ->label('Ditugaskan Oleh')
-                    ->placeholder('Inisiatif Sendiri')
                     ->getStateUsing(function (\App\Models\Task $record) {
-                        if ($record->assigned_by === $record->user_id) {
-                            return null;
-                        }
-                        return $record->assigner?->name;
+                        return $record->assigner?->name ?? '-';
                     })
                     ->toggleable(isToggledHiddenByDefault: true),
                  
@@ -272,12 +267,8 @@ class TaskResource extends Resource
                                 ->badge()
                                 ->color('gray')
                                 ->getStateUsing(function (\App\Models\Task $record) {
-                                    if ($record->assigned_by === $record->user_id) {
-                                        return null;
-                                    }
-                                    return $record->assigner?->name;
-                                })
-                                ->placeholder('Inisiatif Sendiri'),
+                                    return $record->assigner?->name ?? '-';
+                                }),
 
                             TextEntry::make('assigned_to')
                                 ->label('Ditugaskan Kepada')
@@ -316,12 +307,12 @@ class TaskResource extends Resource
 
                             TextEntry::make('created_at')
                                 ->label('Dibuat Pada')
-                                ->date('d F Y')
+                                ->date('d F Y H:i')
                                 ->placeholder('-'),
                                 
                             TextEntry::make('processed_at')
                                 ->label('Mulai Dikerjakan')
-                                ->date('d F Y')
+                                ->date('d F Y H:i')
                                 ->placeholder('-'),
                             
                             TextEntry::make('completed_at')

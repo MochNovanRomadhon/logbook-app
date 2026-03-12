@@ -24,13 +24,30 @@ class EditLogbook extends EditRecord
             // 1. Kunci otomatis
             $logbook->update(['is_submitted' => true]);
 
-            // 2. Jalankan logika update status task 100%
+            // 2. Jalankan logika update status task dan cek progress kosong
             foreach ($logbook->items as $item) {
-                if ($item->task_id && $item->current_progress == 100) {
-                    \App\Models\Task::where('id', $item->task_id)->update([
-                        'status' => 'completed',
-                        'completed_at' => now(),
-                    ]);
+                if ($item->task_id) {
+                    // Jika progress akhir (current) belum diisi (null), ambil dari (previous) atau 0
+                    if (is_null($item->current_progress)) {
+                        $item->update([
+                            'current_progress' => $item->previous_progress ?? 0
+                        ]);
+                    }
+
+                    $task = \App\Models\Task::find($item->task_id);
+                    if ($task) {
+                        if ($item->current_progress == 100) {
+                            $task->update([
+                                'status' => 'completed',
+                                'completed_at' => now(),
+                            ]);
+                        } elseif ($task->status === 'pending') {
+                            $task->update([
+                                'status' => 'in_progress',
+                                'processed_at' => now(),
+                            ]);
+                        }
+                    }
                 }
             }
 
@@ -72,13 +89,23 @@ class EditLogbook extends EditRecord
             ->action(function () {
             $this->record->update(['is_submitted' => true]);
 
-            // Logika update status tugas 100%
+            // Logika update status tugas 100% atau Menunggu -> Proses
             foreach ($this->record->items as $item) {
-                if ($item->task_id && $item->current_progress == 100) {
-                    \App\Models\Task::where('id', $item->task_id)->update([
-                            'status' => 'completed',
-                            'completed_at' => now(),
-                        ]);
+                if ($item->task_id) {
+                    $task = \App\Models\Task::find($item->task_id);
+                    if ($task) {
+                        if ($item->current_progress == 100) {
+                            $task->update([
+                                'status' => 'completed',
+                                'completed_at' => now(),
+                            ]);
+                        } elseif ($task->status === 'pending') {
+                            $task->update([
+                                'status' => 'in_progress',
+                                'processed_at' => now(),
+                            ]);
+                        }
+                    }
                 }
             }
 

@@ -390,7 +390,9 @@ class MonitoringTaskResource extends Resource
                                 ->label('Ditugaskan Oleh')
                                 ->badge()
                                 ->color('gray')
-                                ->placeholder('Inisiatif Sendiri'),
+                                ->getStateUsing(function (\App\Models\Task $record) {
+                                    return $record->assigner?->name ?? '-';
+                                }),
 
                             // "Ditugaskan Kepada" — nama semua pegawai yang terlibat
                             TextEntry::make('assigned_to_names')
@@ -438,12 +440,12 @@ class MonitoringTaskResource extends Resource
 
                             TextEntry::make('created_at')
                                 ->label('Dibuat Pada')
-                                ->date('d F Y')
+                                ->date('d F Y H:i')
                                 ->placeholder('-'),
                                 
                             TextEntry::make('processed_at')
                                 ->label('Mulai Dikerjakan')
-                                ->date('d F Y')
+                                ->date('d F Y H:i')
                                 ->placeholder('-'),
                             
                             TextEntry::make('completed_at')

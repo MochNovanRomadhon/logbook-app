@@ -247,13 +247,23 @@ class LogbookResource extends Resource
                     ->action(function (Logbook $record) {
                         $record->update(['is_submitted' => true]);
 
-                        // [7] Logika update status tugas 100%
+                        // [7] Logika update status tugas 100% atau Menunggu -> Proses
                         foreach ($record->items as $item) {
-                            if ($item->task_id && $item->current_progress == 100) {
-                                \App\Models\Task::where('id', $item->task_id)->update([
-                                    'status' => 'completed',
-                                    'completed_at' => now(),
-                                ]);
+                            if ($item->task_id) {
+                                $task = \App\Models\Task::find($item->task_id);
+                                if ($task) {
+                                    if ($item->current_progress == 100) {
+                                        $task->update([
+                                            'status' => 'completed',
+                                            'completed_at' => now(),
+                                        ]);
+                                    } elseif ($task->status === 'pending') {
+                                        $task->update([
+                                            'status' => 'in_progress',
+                                            'processed_at' => now(),
+                                        ]);
+                                    }
+                                }
                             }
                         }
                     }),

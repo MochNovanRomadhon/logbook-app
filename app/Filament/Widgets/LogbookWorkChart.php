@@ -8,6 +8,7 @@ use App\Models\Logbook;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 class LogbookWorkChart extends ChartWidget
 {
@@ -65,11 +66,15 @@ class LogbookWorkChart extends ChartWidget
         // LOGIKA PEGAWAI
         // ==========================================
         if (! $user->hasRole('pengawas')) {
-            $logbooks = Logbook::withCount('items')
-                ->where('user_id', $user->id)
-                ->whereBetween('date', [$startDate, $endDate])
-                ->get()
-                ->keyBy(fn ($l) => Carbon::parse($l->date)->format('Y-m-d'));
+            $cacheKey = "logbook_work_pegawai_{$user->id}_{$startDate->format('Y-m-d')}_{$endDate->format('Y-m-d')}";
+            
+            $logbooks = Cache::remember($cacheKey, now()->addMinutes(15), function () use ($user, $startDate, $endDate) {
+                return Logbook::withCount('items')
+                    ->where('user_id', $user->id)
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->get()
+                    ->keyBy(fn ($l) => Carbon::parse($l->date)->format('Y-m-d'));
+            });
 
             $period = \Carbon\CarbonPeriod::create($startDate, $endDate);
             
@@ -121,20 +126,25 @@ class LogbookWorkChart extends ChartWidget
             ];
         }
 
-        $employees = User::query()
-            ->select('users.*')
-            ->selectRaw('(
-                SELECT COUNT(li.id)
-                FROM logbooks l
-                JOIN logbook_items li ON l.id = li.logbook_id
-                WHERE l.user_id = users.id
-                AND l.date BETWEEN ? AND ?
-            ) as items_count', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
-            ->whereHas('roles', fn($q) => $q->where('name', 'pegawai'))
-            ->where('subunit_id', $filters['subunit_id'])
-            ->orderByDesc('items_count')
-            ->limit(20)
-            ->get();
+        $subunitId = $filters['subunit_id'];
+        $cacheKey = "logbook_work_pengawas_{$user->id}_{$subunitId}_{$startDate->format('Y-m-d')}_{$endDate->format('Y-m-d')}";
+
+        $employees = Cache::remember($cacheKey, now()->addMinutes(15), function () use ($startDate, $endDate, $subunitId) {
+            return User::query()
+                ->select('users.*')
+                ->selectRaw('(
+                    SELECT COUNT(li.id)
+                    FROM logbooks l
+                    JOIN logbook_items li ON l.id = li.logbook_id
+                    WHERE l.user_id = users.id
+                    AND l.date BETWEEN ? AND ?
+                ) as items_count', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
+                ->whereHas('roles', fn($q) => $q->where('name', 'pegawai'))
+                ->where('subunit_id', $subunitId)
+                ->orderByDesc('items_count')
+                ->limit(20)
+                ->get();
+        });
 
         return [
             'datasets' => [

@@ -3,11 +3,16 @@
 namespace App\Filament\Widgets;
 
 use Filament\Widgets\ChartWidget;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use App\Models\Task;
 use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 class TaskUrgencyChart extends ChartWidget
 {
+    use InteractsWithPageFilters;
+
     protected static ?string $heading = 'Tingkat Urgensi';
     protected static bool $isLazy = true;
     protected static ?int $sort = 3;
@@ -23,14 +28,23 @@ class TaskUrgencyChart extends ChartWidget
     protected function getData(): array
     {
         $user = Auth::user();
+        $filters = $this->filters;
 
-        $data = Task::query()
-            ->where('user_id', $user->id)
-            ->selectRaw('urgency, count(*) as count')
-            ->groupBy('urgency')
-            ->orderBy('urgency')
-            ->pluck('count', 'urgency')
-            ->toArray();
+        $startDate = Carbon::parse($filters['startDate'] ?? now()->startOfWeek())->startOfDay();
+        $endDate = Carbon::parse($filters['endDate'] ?? now()->endOfWeek())->endOfDay();
+        
+        $cacheKey = "task_urgency_{$user->id}_{$startDate->format('Y-m-d')}_{$endDate->format('Y-m-d')}";
+
+        $data = Cache::remember($cacheKey, now()->addMinutes(15), function () use ($user, $startDate, $endDate) {
+            return Task::query()
+                ->where('user_id', $user->id)
+                ->whereBetween('deadline', [$startDate, $endDate])
+                ->selectRaw('urgency, count(*) as count')
+                ->groupBy('urgency')
+                ->orderBy('urgency')
+                ->pluck('count', 'urgency')
+                ->toArray();
+        });
 
         return [
             'datasets' => [

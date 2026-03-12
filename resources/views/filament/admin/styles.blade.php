@@ -4,26 +4,21 @@
        (Diambil dari style lengkap dengan tombol)
        ========================================= */
 
-    /* 1. Memberi Batas (Border) & Warna pada Sidebar — Light Mode Only */
+    /* 1. Memberi Batas (Border) pada Sidebar */
     aside.fi-sidebar {
-        background-color: #fdfdfd !important;
         box-shadow: 4px 0 24px rgba(0,0,0,0.02);
     }
-    /* Dark mode: biarkan Filament yang menangani warna bawaannya */
+    /* Dark mode: hapus batas */
     .dark aside.fi-sidebar {
-        background-color: unset !important;
         box-shadow: none;
     }
 
-    /* 2. Memperbaiki Header Sidebar — Light Mode Only */
+    /* 2. Memperbaiki Header Sidebar */
     .fi-sidebar-header {
         /* border-bottom: 1px solid #f3f4f6; */
-        background-color: white;
     }
-    /* Dark mode: samakan dengan header body (topbar) */
     .dark .fi-sidebar-header {
         /* border-bottom: 0.5px solid rgba(255,255,255,0.06); */
-        background-color: #18181B !important; /* hitam seperti topbar */
     }
 
     /* 3. Styling Tombol Collapse (Panah Buka/Tutup) */

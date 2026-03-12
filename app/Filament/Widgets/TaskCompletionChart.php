@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Flowframe\Trend\Trend;
 use Flowframe\Trend\TrendValue;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 class TaskCompletionChart extends ChartWidget
 {
@@ -91,14 +92,19 @@ class TaskCompletionChart extends ChartWidget
                 $taskQuery->where('status', $this->filter);
             }
 
-            $data = Trend::query($taskQuery)
-                ->dateColumn('deadline')
-                ->between(
-                    start: Carbon::parse($startDate)->startOfDay(),
-                    end: Carbon::parse($endDate)->endOfDay(),
-                )
-                ->perDay()
-                ->count();
+            // --- Terapkan Cache 15 Menit ---
+            $cacheKey = "task_completion_pegawai_{$user->id}_{$startDate}_{$endDate}_{$this->filter}";
+            
+            $data = Cache::remember($cacheKey, now()->addMinutes(15), function () use ($taskQuery, $startDate, $endDate) {
+                return Trend::query($taskQuery)
+                    ->dateColumn('deadline')
+                    ->between(
+                        start: Carbon::parse($startDate)->startOfDay(),
+                        end: Carbon::parse($endDate)->endOfDay(),
+                    )
+                    ->perDay()
+                    ->count();
+            });
             
             return [
                 'datasets' => [
@@ -179,22 +185,27 @@ class TaskCompletionChart extends ChartWidget
         };
 
         // Jika sampai sini, berarti Sub Unit SUDAH dipilih.
-        // Jalankan query khusus untuk Sub Unit tersebut.
-        $employees = User::query()
-            ->whereHas('roles', fn($q) => $q->where('name', 'pegawai'))
-            ->where('subunit_id', $filters['subunit_id']) // Filter Sub Unit
-            ->withCount(['tasks' => function ($query) use ($startDate, $endDate, $statusFilter) {
-                // Filter Tanggal
-                $query->whereBetween('deadline', [$startDate, $endDate]);
-                
-                // Filter Status (Jika ada)
-                if (! empty($statusFilter)) {
-                    $query->where('status', $statusFilter);
-                }
-            }])
-            ->orderByDesc('tasks_count')
-            ->limit(20)
-            ->get();
+        // Jalankan query khusus untuk Sub Unit tersebut dengan Cache 15 Menit.
+        $subunitId = $filters['subunit_id'];
+        $cacheKey = "task_completion_pengawas_{$user->id}_{$subunitId}_{$startDate}_{$endDate}_{$statusFilter}";
+
+        $employees = Cache::remember($cacheKey, now()->addMinutes(15), function () use ($subunitId, $startDate, $endDate, $statusFilter) {
+            return User::query()
+                ->whereHas('roles', fn($q) => $q->where('name', 'pegawai'))
+                ->where('subunit_id', $subunitId) // Filter Sub Unit
+                ->withCount(['tasks' => function ($query) use ($startDate, $endDate, $statusFilter) {
+                    // Filter Tanggal
+                    $query->whereBetween('deadline', [$startDate, $endDate]);
+                    
+                    // Filter Status (Jika ada)
+                    if (! empty($statusFilter)) {
+                        $query->where('status', $statusFilter);
+                    }
+                }])
+                ->orderByDesc('tasks_count')
+                ->limit(20)
+                ->get();
+        });
 
         return [
             'datasets' => [
