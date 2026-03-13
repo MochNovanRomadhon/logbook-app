@@ -18,4 +18,5 @@ class ListMonitoringLogbooks extends ListRecords
             // Actions\CreateAction::make(),
         ];
     }
+
 }
