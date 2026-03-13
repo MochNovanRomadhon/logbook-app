@@ -35,8 +35,8 @@ class LogbookWorkChart extends ChartWidget
         $user = Auth::user();
         if ($user->hasRole('pengawas')) {
             $filters = $this->filters;
-            if (empty($filters['subunit_id'])) {
-                return 'Menunggu Filter Sub Unit...';
+            if (empty($filters['directorate_id']) && empty($filters['unit_id']) && empty($filters['subunit_id'])) {
+                return 'Menunggu Filter...';
             }
         }
         return 'Statistik Pengerjaan';
@@ -47,8 +47,8 @@ class LogbookWorkChart extends ChartWidget
         $user = Auth::user();
         if ($user->hasRole('pengawas')) {
             $filters = $this->filters;
-            if (empty($filters['subunit_id'])) {
-                return 'Mohon pilih Direktorat > Unit > Sub Unit untuk menampilkan data.';
+            if (empty($filters['directorate_id']) && empty($filters['unit_id']) && empty($filters['subunit_id'])) {
+                return 'Mohon pilih minimal Direktorat untuk menampilkan data.';
             }
         }
         return 'Jumlah pengerjaan tugas berdasarkan logbook per hari';
@@ -120,18 +120,21 @@ class LogbookWorkChart extends ChartWidget
         // ==========================================
         // LOGIKA PENGAWAS
         // ==========================================
-        if (empty($filters['subunit_id'])) {
+        $directorateId = $filters['directorate_id'] ?? null;
+        $unitId = $filters['unit_id'] ?? null;
+        $subunitId = $filters['subunit_id'] ?? null;
+
+        if (empty($directorateId) && empty($unitId) && empty($subunitId)) {
             return [
                 'datasets' => [],
                 'labels' => [],
             ];
         }
 
-        $subunitId = $filters['subunit_id'];
-        $cacheKey = "logbook_work_pengawas_{$user->id}_{$subunitId}_{$startDate->format('Y-m-d')}_{$endDate->format('Y-m-d')}";
+        $cacheKey = "logbook_work_pengawas_{$user->id}_{$directorateId}_{$unitId}_{$subunitId}_{$startDate->format('Y-m-d')}_{$endDate->format('Y-m-d')}";
 
-        $employees = Cache::remember($cacheKey, now()->addMinutes(15), function () use ($startDate, $endDate, $subunitId) {
-            return User::query()
+        $employees = Cache::remember($cacheKey, now()->addMinutes(15), function () use ($directorateId, $unitId, $subunitId, $startDate, $endDate) {
+            $query = User::query()
                 ->select('users.*')
                 ->selectRaw('(
                     SELECT COUNT(li.id)
@@ -141,9 +144,17 @@ class LogbookWorkChart extends ChartWidget
                     AND l.is_submitted = 1
                     AND l.date BETWEEN ? AND ?
                 ) as items_count', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
-                ->whereHas('roles', fn($q) => $q->where('name', 'pegawai'))
-                ->where('subunit_id', $subunitId)
-                ->orderByDesc('items_count')
+                ->whereHas('roles', fn($q) => $q->whereIn('name', ['pegawai', 'pengawas']));
+
+            if (!empty($subunitId)) {
+                $query->where('subunit_id', $subunitId);
+            } elseif (!empty($unitId)) {
+                $query->where('unit_id', $unitId);
+            } elseif (!empty($directorateId)) {
+                $query->where('directorate_id', $directorateId);
+            }
+
+            return $query->orderByDesc('items_count')
                 ->limit(20)
                 ->get();
         });

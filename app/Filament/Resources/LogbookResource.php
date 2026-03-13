@@ -88,11 +88,32 @@ class LogbookResource extends Resource
                                         Grid::make(2)->schema([
                                             Select::make('task_id')
                                                 ->label('Pilih Tugas')
+                                                ->helperText('Hanya tugas berstatus "Proses" yang muncul. Jika belum klik mulai/proses di Daftar Tugas, ubah statusnya terlebih dahulu.')
                                                 ->options(function (Get $get, $component) {
-                                                    $tasks = \App\Models\Task::where('user_id', Auth::id())
-                                                        ->whereNotIn('status', ['completed', 'cancelled'])
-                                                        ->pluck('title', 'id')
-                                                        ->toArray();
+                                                    $taskQuery = \App\Models\Task::where('user_id', Auth::id())
+                                                        ->where('status', 'in_progress')
+                                                        ->orderBy('deadline', 'asc')
+                                                        ->get();
+
+                                                    $tasks = [];
+                                                    $now = now()->startOfDay();
+                                                    
+                                                    foreach ($taskQuery as $task) {
+                                                        $deadline = \Carbon\Carbon::parse($task->deadline)->startOfDay();
+                                                        
+                                                        if ($deadline->isBefore($now)) {
+                                                            $deadlineText = 'Terlambat';
+                                                        } else {
+                                                            $diffDays = $now->diffInDays($deadline); 
+                                                            if ($diffDays == 0) {
+                                                                $deadlineText = 'Hari ini';
+                                                            } else {
+                                                                $deadlineText = "H-{$diffDays}";
+                                                            }
+                                                        }
+                                                        
+                                                        $tasks[$task->id] = "{$task->title} ({$deadlineText})";
+                                                    }
 
                                                     // Ambil semua task_id yang sudah dipilih di repeater lain
                                                     $allItems = $get('../../items') ?? [];
@@ -151,6 +172,7 @@ class LogbookResource extends Resource
                                             TextInput::make('custom_task_name')
                                                 ->label('Nama Pekerjaan Lainnya')
                                                 ->placeholder('Tuliskan nama pekerjaan...')
+                                                ->helperText('Opsional: Jika "Pekerjaan Lainnya" tidak selesai sekaligus 100%, harap buat sebagai tugas baru di Daftar Tugas untuk kemudahan tracking/monitoring.')
                                                 ->required(fn (Get $get) => $get('task_id') === 'other')
                                                 ->visible(fn (Get $get) => $get('task_id') === 'other')
                                                 ->columnSpanFull(),

@@ -32,15 +32,13 @@ class TaskCompletionChart extends ChartWidget
         return Auth::user()->hasRole('pengawas') ? 'bar' : 'line';
     }
 
-    // --- 1. JUDUL DINAMIS (Memberi info status filter) ---
     public function getHeading(): ?string
     {
         $user = Auth::user();
         if ($user->hasRole('pengawas')) {
             $filters = $this->filters;
-            // Jika Sub Unit belum dipilih, judulnya memberi petunjuk
-            if (empty($filters['subunit_id'])) {
-                return 'Menunggu Filter Sub Unit...';
+            if (empty($filters['directorate_id']) && empty($filters['unit_id']) && empty($filters['subunit_id'])) {
+                return 'Menunggu Filter...';
             }
         }
         return 'Statistik Tugas';
@@ -52,12 +50,12 @@ class TaskCompletionChart extends ChartWidget
         $user = Auth::user();
         if ($user->hasRole('pengawas')) {
             $filters = $this->filters;
-            // Jika Sub Unit belum dipilih, beri instruksi
-            if (empty($filters['subunit_id'])) {
-                return 'Mohon pilih Direktorat > Unit > Sub Unit untuk menampilkan data.';
+            if (empty($filters['directorate_id']) && empty($filters['unit_id']) && empty($filters['subunit_id'])) {
+                return 'Mohon pilih minimal Direktorat untuk menampilkan data.';
             }
+            return 'Jumlah tugas pada unit kerja yang dipilih berdasarkan filter tanggal';
         }
-        return null;
+        return 'Grafik tren jumlah tugas harian berdasarkan tenggat waktu';
     }
 
     // --- 3. FILTER STATUS TASK ---
@@ -70,7 +68,7 @@ class TaskCompletionChart extends ChartWidget
             'pending' => 'Menunggu',
             'in_progress' => 'Proses',
             'completed' => 'Selesai',
-            'canceled' => 'Batal',
+            'cancelled' => 'Batal',
         ];
     }
 
@@ -139,9 +137,11 @@ class TaskCompletionChart extends ChartWidget
         // LOGIKA PENGAWAS (UBAHAN DISINI)
         // ==========================================
         
-        // SYARAT: Jika Sub Unit KOSONG, kembalikan grafik KOSONG.
-        // (Tidak peduli apakah Direktorat atau Unit sudah dipilih atau belum)
-        if (empty($filters['subunit_id'])) {
+        $directorateId = $filters['directorate_id'] ?? null;
+        $unitId = $filters['unit_id'] ?? null;
+        $subunitId = $filters['subunit_id'] ?? null;
+
+        if (empty($directorateId) && empty($unitId) && empty($subunitId)) {
             return [
                 'datasets' => [],
                 'labels' => [],
@@ -156,7 +156,7 @@ class TaskCompletionChart extends ChartWidget
             'pending' => 'Total Tugas Menunggu',
             'in_progress' => 'Total Tugas Proses',
             'completed' => 'Total Tugas Selesai',
-            'canceled' => 'Total Tugas Batal',
+            'cancelled' => 'Total Tugas Batal',
             default => 'Total Semua Tugas',
         };
 
@@ -174,7 +174,7 @@ class TaskCompletionChart extends ChartWidget
                 'bg' => '#10b981', // Emerald-500
                 'border' => '#059669', // Emerald-600
             ],
-            'canceled' => [
+            'cancelled' => [
                 'bg' => '#ef4444', // Red-500
                 'border' => '#dc2626', // Red-600
             ],
@@ -184,22 +184,24 @@ class TaskCompletionChart extends ChartWidget
             ],
         };
 
-        // Jika sampai sini, berarti Sub Unit SUDAH dipilih.
-        // Jalankan query khusus untuk Sub Unit tersebut dengan Cache 15 Menit.
-        $subunitId = $filters['subunit_id'];
-        $cacheKey = "task_completion_pengawas_{$user->id}_{$subunitId}_{$startDate}_{$endDate}_{$statusFilter}";
+        $cacheKey = "task_completion_pengawas_{$user->id}_{$directorateId}_{$unitId}_{$subunitId}_{$startDate}_{$endDate}_{$statusFilter}";
 
-        $employees = Cache::remember($cacheKey, now()->addMinutes(15), function () use ($subunitId, $startDate, $endDate, $statusFilter) {
-            return User::query()
-                ->whereHas('roles', fn($q) => $q->where('name', 'pegawai'))
-                ->where('subunit_id', $subunitId) // Filter Sub Unit
-                ->withCount(['tasks' => function ($query) use ($startDate, $endDate, $statusFilter) {
-                    // Filter Tanggal
-                    $query->whereBetween('deadline', [$startDate, $endDate]);
-                    
-                    // Filter Status (Jika ada)
+        $employees = Cache::remember($cacheKey, now()->addMinutes(15), function () use ($directorateId, $unitId, $subunitId, $startDate, $endDate, $statusFilter) {
+            $query = User::query()
+                ->whereHas('roles', fn($q) => $q->whereIn('name', ['pegawai', 'pengawas']));
+
+            if (!empty($subunitId)) {
+                $query->where('subunit_id', $subunitId);
+            } elseif (!empty($unitId)) {
+                $query->where('unit_id', $unitId);
+            } elseif (!empty($directorateId)) {
+                $query->where('directorate_id', $directorateId);
+            }
+
+            return $query->withCount(['tasks' => function ($q) use ($startDate, $endDate, $statusFilter) {
+                    $q->whereBetween('deadline', [$startDate, $endDate]);
                     if (! empty($statusFilter)) {
-                        $query->where('status', $statusFilter);
+                        $q->where('status', $statusFilter);
                     }
                 }])
                 ->orderByDesc('tasks_count')

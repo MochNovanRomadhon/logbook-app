@@ -195,19 +195,18 @@ public static function table(Table $table): Table
                 return $query->where('user_id', Auth::id());
             }
 
-            $filters = $livewire->tableFilters; 
-            $hasSearchFilter = false;
-
-            // Cek apakah ada filter yang terisi (termasuk dummy trigger)
-            if ($filters) {
-                $hasSearchFilter = !empty($filters['user_id']['value']) || 
-                                   !empty($filters['location']['directorate_id']) || 
-                                   !empty($filters['location']['unit_id']) || 
-                                   !empty($filters['location']['subunit_id']);
-            }
-
-            if (!$hasSearchFilter) {
-                return $query->whereRaw('1 = 0');
+            // Scope for Pengawas
+            if (Auth::user()->hasRole('pengawas')) {
+                $user = Auth::user();
+                $query->whereHas('user', function ($q) use ($user) {
+                    if ($user->subunit_id) {
+                        $q->where('subunit_id', $user->subunit_id);
+                    } elseif ($user->unit_id) {
+                        $q->where('unit_id', $user->unit_id);
+                    } elseif ($user->directorate_id) {
+                        $q->where('directorate_id', $user->directorate_id);
+                    }
+                });
             }
 
             return $query;
@@ -230,6 +229,7 @@ public static function table(Table $table): Table
             Tables\Columns\TextColumn::make('user.name')
                 ->label('Pegawai')
                 ->sortable()
+                ->searchable()
                 ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
 
             Tables\Columns\TextColumn::make('user.subunit.name')->label('Sub Unit')->sortable()->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
@@ -240,51 +240,10 @@ public static function table(Table $table): Table
 
         ])
         ->filters([
-            // --- LOKASI KASCADING ---
-            Tables\Filters\Filter::make('location')
-                ->form([
-                    \Filament\Forms\Components\Grid::make(3)->schema([
-                        \Filament\Forms\Components\Select::make('directorate_id')
-                            ->label('Direktorat')
-                            ->placeholder('Pilih Direktorat')
-                            ->options(Directorate::pluck('name', 'id'))
-                            ->live()
-                            ->afterStateUpdated(fn (\Filament\Forms\Set $set) => $set('unit_id', null)),
-                        \Filament\Forms\Components\Select::make('unit_id')
-                            ->label('Unit')
-                            ->placeholder('Pilih Unit')
-                            ->options(fn (\Filament\Forms\Get $get) => Unit::where('directorate_id', $get('directorate_id'))->pluck('name', 'id'))
-                            ->live()
-                            ->afterStateUpdated(fn (\Filament\Forms\Set $set) => $set('subunit_id', null)),
-                        \Filament\Forms\Components\Select::make('subunit_id')
-                            ->label('Sub Unit')
-                            ->placeholder('Pilih Sub Unit')
-                            ->options(fn (\Filament\Forms\Get $get) => Subunit::where('unit_id', $get('unit_id'))->pluck('name', 'id')),
-                    ])
-                ])
-                ->query(function (Builder $query, array $data): Builder {
-                    return $query
-                        ->when($data['directorate_id'], fn ($q, $v) => $q->whereHas('user.subunit.unit', fn ($subQ) => $subQ->where('directorate_id', $v)))
-                        ->when($data['unit_id'], fn ($q, $v) => $q->whereHas('user.subunit', fn ($subQ) => $subQ->where('unit_id', $v)))
-                        ->when($data['subunit_id'], fn ($q, $v) => $q->whereHas('user', fn ($subQ) => $subQ->where('subunit_id', $v)));
-                })
-                ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas']))
-                ->columnSpan(12),
-
-            // --- BARIS 2 (3 Kolom Input + 1 Kolom Tombol) ---
-            Tables\Filters\SelectFilter::make('user_id')
-                ->label('Cari Pegawai')
-                ->placeholder('Pilih Pegawai')
-                ->relationship('user', 'name')
-                ->searchable()
-                ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas']))
-                ->columnSpan(3), // 3 dari 12
-
             Tables\Filters\SelectFilter::make('is_submitted')
                 ->label('Status')
                 ->placeholder('Pilih Status')
-                ->options([0 => 'Draft', 1 => 'Final'])
-                ->columnSpan(3), // 3 dari 12
+                ->options([0 => 'Draft', 1 => 'Final']),
             
             Tables\Filters\Filter::make('date_range')
                 ->label('Rentang Tanggal') 
@@ -296,26 +255,9 @@ public static function table(Table $table): Table
                 ])
                 ->query(fn (Builder $query, array $data) => $query
                     ->when($data['created_from'], fn ($q, $d) => $q->whereDate('date', '>=', $d))
-                    ->when($data['created_until'], fn ($q, $d) => $q->whereDate('date', '<=', $d)))
-                ->columnSpan(3), // 3 dari 12
+                    ->when($data['created_until'], fn ($q, $d) => $q->whereDate('date', '<=', $d))),
 
-            // --- TOMBOL CUSTOM (Kolom ke-4 di baris bawah) ---
-            Tables\Filters\Filter::make('search_trigger')
-                ->label('') // Label kosong agar sejajar
-                ->form([
-                    \Filament\Forms\Components\ViewField::make('search_btn')
-                        ->view('filament.components.filter-button') // Memanggil View Custom
-                        ->label('')
-                ])
-                ->columnSpan(3), // 3 dari 12
-
-        ], layout: FiltersLayout::AboveContent)
-        
-        ->filtersFormColumns(12) // Menggunakan Grid 12
-        ->deferFilters()
-        
-        // Sembunyikan tombol native (karena kita pakai tombol custom)
-        ->filtersApplyAction(fn (\Filament\Tables\Actions\Action $action) => $action->hidden())
+        ])
         
         ->actions([
             Tables\Actions\ViewAction::make(),

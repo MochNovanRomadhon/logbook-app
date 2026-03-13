@@ -136,17 +136,7 @@ class MonitoringTaskResource extends Resource
                       ->orWhereIn('id', $minGroupIds);
                 });
 
-                // Perlukan filter lokasi hanya untuk super_admin
-                if ($currentUser->hasRole('super_admin')) {
-                    $filters = $livewire->tableFilters;
-                    $hasSearchFilter = !empty($filters['user_id']['value']) || 
-                                       !empty($filters['location']['unit_id']) || 
-                                       !empty($filters['location']['subunit_id']);
 
-                    if (!$hasSearchFilter) {
-                        return $query->whereRaw('1 = 0');
-                    }
-                }
 
                 return $query;
             })
@@ -156,7 +146,7 @@ class MonitoringTaskResource extends Resource
             ->emptyStateIcon('heroicon-o-magnifying-glass')
             
             ->columns([
-                Tables\Columns\TextColumn::make('title')->label('Judul')->limit(30),
+                Tables\Columns\TextColumn::make('title')->label('Judul')->limit(30)->searchable(),
                 
                 Tables\Columns\TextColumn::make('assigned_to_names')
                     ->label('Ditugaskan Kepada')
@@ -226,61 +216,23 @@ class MonitoringTaskResource extends Resource
                     }),
             ])
             ->filters([
-                // Filter Lokasi (hanya untuk super_admin, pengawas sudah dibatasi ke data sendiri)
-                Tables\Filters\Filter::make('location')
-                    ->form([
-                        \Filament\Forms\Components\Grid::make(2)->schema([
-                            \Filament\Forms\Components\Select::make('unit_id')
-                                ->label('Unit')
-                                ->placeholder('Pilih Unit')
-                                ->options(function () {
-                                    $user = Auth::user();
-                                    if ($user->hasRole('super_admin')) {
-                                        return Unit::where('is_active', true)->pluck('name', 'id');
-                                    }
-                                    // Pengawas: hanya unit miliknya
-                                    return Unit::where('id', $user->unit_id)->where('is_active', true)->pluck('name', 'id');
-                                })
-                                ->live()
-                                ->afterStateUpdated(fn (\Filament\Forms\Set $set) => $set('subunit_id', null)),
-                            \Filament\Forms\Components\Select::make('subunit_id')
-                                ->label('Sub Unit')
-                                ->placeholder('Pilih Sub Unit')
-                                ->options(fn (\Filament\Forms\Get $get) => Subunit::where('unit_id', $get('unit_id'))->where('is_active', true)->pluck('name', 'id')),
-                        ])
-                    ])
-                    ->query(function (Builder $query, array $data): Builder {
-                        return $query
-                            ->when($data['unit_id'], fn ($q, $v) => $q->whereHas('user.subunit', fn ($subQ) => $subQ->where('unit_id', $v)))
-                            ->when($data['subunit_id'], fn ($q, $v) => $q->whereHas('user', fn ($subQ) => $subQ->where('subunit_id', $v)));
-                    })
-                    ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas']))
-                    ->columnSpan(12),
-
                 Tables\Filters\SelectFilter::make('user_id')
                     ->label('Pegawai')
                     ->placeholder('Pilih Pegawai')
                     ->relationship('user', 'name', fn(Builder $query) => $query->where('is_active', true))
                     ->searchable()
-                    ->visible(fn() => Auth::user()->hasRole('super_admin'))
-                    ->columnSpan(3),
+                    ->visible(fn() => Auth::user()->hasRole('super_admin')),
 
                 Tables\Filters\SelectFilter::make('status')
                     ->placeholder('Pilih Status')
-                    ->options(['pending' => 'Menunggu', 'in_progress' => 'Proses', 'completed' => 'Selesai', 'cancelled' => 'Batal'])
-                    ->columnSpan(3),
+                    ->options(['pending' => 'Menunggu', 'in_progress' => 'Proses', 'completed' => 'Selesai', 'cancelled' => 'Batal']),
 
                 Tables\Filters\SelectFilter::make('urgency')
                     ->label('Urgensi')
                     ->placeholder('Pilih Urgensi')
-                    ->options([1 => '1', 2 => '2', 3 => '3', 4 => '4', 5 => '5'])
-                    ->columnSpan(3),
+                    ->options([1 => '1', 2 => '2', 3 => '3', 4 => '4', 5 => '5']),
 
-            ], layout: FiltersLayout::AboveContent)
-            
-            ->filtersFormColumns(12) 
-            ->deferFilters()
-            ->filtersApplyAction(fn (\Filament\Tables\Actions\Action $action) => $action->hidden())
+            ])
 
             ->actions([
                 Tables\Actions\Action::make('accept_task')

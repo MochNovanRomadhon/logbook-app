@@ -18,20 +18,4 @@ class ListMonitoringLogbooks extends ListRecords
             // Actions\CreateAction::make(),
         ];
     }
-
-    public function getTabs(): array
-    {
-        return [
-            'semua' => Tab::make('Semua')
-                ->icon('heroicon-o-list-bullet'),
-
-            'draft' => Tab::make('Draft')
-                ->icon('heroicon-o-pencil')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('is_submitted', false)),
-
-            'final' => Tab::make('Final')
-                ->icon('heroicon-o-lock-closed')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('is_submitted', true)),
-        ];
-    }
 }

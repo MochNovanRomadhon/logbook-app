@@ -23,9 +23,21 @@ class TaskStatusChart extends ChartWidget
     public function getHeading(): ?string
     {
         $user = Auth::user();
-        $total = Task::where('user_id', $user->id)->count();
+        $filters = $this->filters;
+
+        $startDate = Carbon::parse($filters['startDate'] ?? now()->startOfWeek())->startOfDay();
+        $endDate = Carbon::parse($filters['endDate'] ?? now()->endOfWeek())->endOfDay();
+
+        $total = Task::where('user_id', $user->id)
+            ->whereBetween('deadline', [$startDate, $endDate])
+            ->count();
 
         return "Status Tugas (Total: $total)";
+    }
+
+    public function getDescription(): ?string
+    {
+        return 'Komposisi status tugas berdasarkan rentang waktu';
     }
 
     // Hanya tampil untuk Pegawai

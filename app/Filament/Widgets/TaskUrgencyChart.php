@@ -25,6 +25,11 @@ class TaskUrgencyChart extends ChartWidget
         return Auth::user() && Auth::user()->hasRole('pegawai');
     }
 
+    public function getDescription(): ?string
+    {
+        return 'Perbandingan tingkat urgensi tugas yang sedang aktif';
+    }
+
     protected function getData(): array
     {
         $user = Auth::user();
