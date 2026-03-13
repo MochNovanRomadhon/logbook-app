@@ -60,7 +60,7 @@ class TaskStatusChart extends ChartWidget
             'Menunggu' => $dataRaw['pending'] ?? 0,
             'Proses'   => $dataRaw['in_progress'] ?? 0,
             'Selesai'  => $dataRaw['completed'] ?? 0,
-            'Batal'    => $dataRaw['canceled'] ?? 0,
+            'Batal'    => $dataRaw['cancelled'] ?? 0,
         ];
 
         return [
@@ -87,6 +87,8 @@ class TaskStatusChart extends ChartWidget
     {
         return [
             'cutout' => '60%', // Ukuran lubang tengah
+            'responsive' => true,
+            'maintainAspectRatio' => false,
             'plugins' => [
                 'legend' => [
                     'position' => 'bottom',

@@ -82,7 +82,9 @@ class TaskUrgencyChart extends ChartWidget
     protected function getOptions(): array
     {
         return [
-            'indexAxis' => 'y', 
+            'indexAxis' => 'y',
+            'responsive' => true,
+            'maintainAspectRatio' => false,
             'plugins' => [
                 'legend' => ['display' => false],
             ],

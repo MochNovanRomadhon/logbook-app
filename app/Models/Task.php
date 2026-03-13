@@ -53,7 +53,7 @@ class Task extends Model
     // Logbook Items terkait tugas ini
     public function logbookItems(): HasMany
     {
-        return $this->hasMany(LogbookItem::class)->orderByDesc('created_at');
+        return $this->hasMany(LogbookItem::class)->orderByDesc('logbook_items.created_at');
     }
 
     protected static function booted()

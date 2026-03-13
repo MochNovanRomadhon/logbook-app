@@ -71,6 +71,7 @@ class LogbookWorkChart extends ChartWidget
             $logbooks = Cache::remember($cacheKey, now()->addMinutes(15), function () use ($user, $startDate, $endDate) {
                 return Logbook::withCount('items')
                     ->where('user_id', $user->id)
+                    ->where('is_submitted', true)
                     ->whereBetween('date', [$startDate, $endDate])
                     ->get()
                     ->keyBy(fn ($l) => Carbon::parse($l->date)->format('Y-m-d'));
@@ -137,6 +138,7 @@ class LogbookWorkChart extends ChartWidget
                     FROM logbooks l
                     JOIN logbook_items li ON l.id = li.logbook_id
                     WHERE l.user_id = users.id
+                    AND l.is_submitted = 1
                     AND l.date BETWEEN ? AND ?
                 ) as items_count', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
                 ->whereHas('roles', fn($q) => $q->where('name', 'pegawai'))

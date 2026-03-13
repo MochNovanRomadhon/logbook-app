@@ -106,6 +106,7 @@ class TaskResource extends Resource
                             Forms\Components\DatePicker::make('deadline')
                                 ->label('Tenggat Waktu')
                                 ->required()
+                                ->minDate(fn ($record) => $record ? null : now()->addDay()->startOfDay())
                                 ->disabled($isDisabled),
                             
                             Forms\Components\Select::make('status')
@@ -184,7 +185,7 @@ class TaskResource extends Resource
                 Tables\Columns\TextColumn::make('assigner.name')
                     ->label('Ditugaskan Oleh')
                     ->getStateUsing(function (\App\Models\Task $record) {
-                        return $record->assigner?->name ?? '-';
+                        return $record->assigner?->name ?? $record->user?->name ?? '-';
                     })
                     ->toggleable(isToggledHiddenByDefault: true),
                  
@@ -267,7 +268,7 @@ class TaskResource extends Resource
                                 ->badge()
                                 ->color('gray')
                                 ->getStateUsing(function (\App\Models\Task $record) {
-                                    return $record->assigner?->name ?? '-';
+                                    return $record->assigner?->name ?? $record->user?->name ?? '-';
                                 }),
 
                             TextEntry::make('assigned_to')
@@ -329,19 +330,21 @@ class TaskResource extends Resource
 
                 InfoSection::make('Catatan')
                     ->schema([
-                        \Filament\Infolists\Components\RepeatableEntry::make('logbookItems')
+                        \Filament\Infolists\Components\RepeatableEntry::make('group_logbook_items')
                             ->label('')
                             ->schema([
                                 InfoGrid::make(4)->schema([
-                                    TextEntry::make('logbook.date')
+                                    TextEntry::make('logbook_date')
                                         ->label('Tanggal')
+                                        ->getStateUsing(fn ($record) => $record->logbook?->date)
                                         ->date('d M Y'),
                                     TextEntry::make('user_name')
                                         ->label('Pegawai')
                                         ->getStateUsing(fn ($record) => $record->logbook?->user?->name ?? '-')
                                         ->visible(fn ($record) => $record->task?->task_group_id !== null),
-                                    TextEntry::make('activity')
-                                        ->label('Deskripsi'),
+                                    TextEntry::make('activity_desc')
+                                        ->label('Deskripsi')
+                                        ->getStateUsing(fn ($record) => $record->activity ?? '-'),
                                     TextEntry::make('progress_change')
                                         ->label('Progress')
                                         ->getStateUsing(fn ($record) => $record->task_id
@@ -374,20 +377,17 @@ class TaskResource extends Resource
                                 if ($record->task_group_id) {
                                     $groupTaskIds = Task::where('task_group_id', $record->task_group_id)->pluck('id');
                                     return \App\Models\LogbookItem::whereIn('task_id', $groupTaskIds)
-                                        ->join('logbooks', 'logbooks.id', '=', 'logbook_items.logbook_id')
-                                        ->orderByDesc('logbooks.date')
-                                        ->orderByDesc('logbook_items.created_at')
-                                        ->select('logbook_items.*')
                                         ->with(['logbook.user', 'task'])
-                                        ->get();
+                                        ->get()
+                                        ->sortByDesc(fn ($item) => $item->logbook?->date)
+                                        ->values();
                                 }
-                                return $record->logbookItems()
-                                    ->join('logbooks', 'logbooks.id', '=', 'logbook_items.logbook_id')
-                                    ->orderByDesc('logbooks.date')
-                                    ->orderByDesc('logbook_items.created_at')
-                                    ->select('logbook_items.*')
+                                // Task tunggal
+                                return \App\Models\LogbookItem::where('task_id', $record->id)
                                     ->with(['logbook.user', 'task'])
-                                    ->get();
+                                    ->get()
+                                    ->sortByDesc(fn ($item) => $item->logbook?->date)
+                                    ->values();
                             })
                             ->placeholder('Belum ada catatan')
                             ->columns(1),

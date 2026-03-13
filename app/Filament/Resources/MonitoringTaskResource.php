@@ -514,19 +514,16 @@ class MonitoringTaskResource extends Resource
                                     $groupTaskIds = Task::where('task_group_id', $record->task_group_id)->pluck('id');
                                     return LogbookItem::whereIn('task_id', $groupTaskIds)
                                         ->with(['logbook.user', 'task'])
-                                        ->join('logbooks', 'logbook_items.logbook_id', '=', 'logbooks.id')
-                                        ->orderByDesc('logbooks.date')
-                                        ->orderByDesc('logbook_items.created_at')
-                                        ->select('logbook_items.*')
-                                        ->get();
+                                        ->get()
+                                        ->sortByDesc(fn ($item) => $item->logbook?->date)
+                                        ->values();
                                 }
-                                return $record->logbookItems()
+                                // Task tunggal
+                                return LogbookItem::where('task_id', $record->id)
                                     ->with(['logbook.user', 'task'])
-                                    ->join('logbooks', 'logbook_items.logbook_id', '=', 'logbooks.id')
-                                    ->orderByDesc('logbooks.date')
-                                    ->orderByDesc('logbook_items.created_at')
-                                    ->select('logbook_items.*')
-                                    ->get();
+                                    ->get()
+                                    ->sortByDesc(fn ($item) => $item->logbook?->date)
+                                    ->values();
                             })
                             ->placeholder('Belum ada catatan')
                             ->columns(1),
