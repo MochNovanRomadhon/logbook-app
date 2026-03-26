@@ -202,7 +202,11 @@ public static function table(Table $table): Table
                     if ($user->subunit_id) {
                         $q->where('subunit_id', $user->subunit_id);
                     } elseif ($user->unit_id) {
-                        $q->where('unit_id', $user->unit_id);
+                        // Pengawas unit: lihat semua user di subunit-subunit dari unit ini
+                        $q->where(function ($sub) use ($user) {
+                            $sub->where('unit_id', $user->unit_id)
+                                ->orWhereHas('subunit', fn ($s) => $s->where('unit_id', $user->unit_id));
+                        });
                     } elseif ($user->directorate_id) {
                         $q->where('directorate_id', $user->directorate_id);
                     }
@@ -260,7 +264,8 @@ public static function table(Table $table): Table
         ])
         
         ->actions([
-            Tables\Actions\ViewAction::make(),
+            Tables\Actions\ViewAction::make()
+                ->modalHeading('Lihat Monitoring Logbook Harian'),
         ])
         ->bulkActions([]);
 }
@@ -268,59 +273,75 @@ public static function table(Table $table): Table
     // [4] Infolist Logbook untuk Monitoring
     public static function infolist(\Filament\Infolists\Infolist $infolist): \Filament\Infolists\Infolist
     {
-        // InfoList yang sama dengan LogbookResource
         return $infolist
             ->schema([
-                \Filament\Infolists\Components\Section::make('Informasi Utama')
+                \Filament\Infolists\Components\Section::make('')
                     ->schema([
                         \Filament\Infolists\Components\Grid::make(3)->schema([
                             \Filament\Infolists\Components\TextEntry::make('date')
-                                ->label('Tanggal Laporan')
+                                ->label('Tanggal')
                                 ->date('d F Y')
                                 ->weight('bold'),
 
-                            \Filament\Infolists\Components\TextEntry::make('is_submitted')
-                                ->label('Status')
-                                ->badge()
-                                ->formatStateUsing(fn (bool $state) => $state ? 'Final (Terkunci)' : 'Draft')
-                                ->colors(['gray' => false, 'success' => true]),
-
                             \Filament\Infolists\Components\TextEntry::make('user.name')
-                                ->label('Pegawai')
-                                ->weight('bold')
-                                ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
+                                ->label('Dibuat oleh')
+                                ->weight('bold'),
+
+                            \Filament\Infolists\Components\TextEntry::make('unit_subunit_info')
+                                ->label('Unit - Sub Unit')
+                                ->getStateUsing(function ($record) {
+                                    $unit = $record->user?->subunit?->unit?->name ?? $record->user?->unit?->name ?? '-';
+                                    $subunit = $record->user?->subunit?->name ?? '-';
+                                    return "{$unit} - {$subunit}";
+                                }),
                         ]),
                     ]),
 
-                \Filament\Infolists\Components\Section::make('Rincian Aktivitas')
+                \Filament\Infolists\Components\Section::make('')
                     ->schema([
                         \Filament\Infolists\Components\RepeatableEntry::make('items')
                             ->label('')
                             ->schema([
-                                \Filament\Infolists\Components\Grid::make(4)->schema([
-                                    \Filament\Infolists\Components\TextEntry::make('task.title')
-                                        ->label('Pekerjaan/Tugas')
-                                        ->getStateUsing(fn ($record) => $record->task_id ? $record->task->title : $record->custom_task_name)
-                                        ->weight('bold')
-                                        ->size(\Filament\Infolists\Components\TextEntry\TextEntrySize::Large)
-                                        ->columnSpan(2),
+                                \Filament\Infolists\Components\Grid::make(5)->schema([
+                                    \Filament\Infolists\Components\TextEntry::make('activity')
+                                        ->label('Deskripsi Pekerjaan')
+                                        ->columnSpan(1),
 
-                                    \Filament\Infolists\Components\TextEntry::make('progress_change')
-                                        ->label('Progress')
-                                        ->getStateUsing(function ($record) {
-                                            if (!$record->task_id) return 'N/A';
-                                            $prev = $record->previous_progress ?? 0;
-                                            $curr = $record->current_progress ?? 0;
-                                            return "{$prev}% ➝ {$curr}%";
+                                    \Filament\Infolists\Components\TextEntry::make('task_name')
+                                        ->label('Tugas')
+                                        ->getStateUsing(fn ($record) => $record->task_id ? ($record->task?->title ?? '-') : ($record->custom_task_name ?? '-'))
+                                        ->columnSpan(1),
+
+                                    \Filament\Infolists\Components\TextEntry::make('previous_progress')
+                                        ->label('Persentase Sebelumnya')
+                                        ->getStateUsing(fn ($record) => $record->task_id ? (($record->previous_progress ?? 0) . '%') : '-')
+                                        ->alignCenter()
+                                        ->columnSpan(1),
+
+                                    \Filament\Infolists\Components\TextEntry::make('current_progress')
+                                        ->label('Persentase Sekarang')
+                                        ->getStateUsing(fn ($record) => $record->task_id ? (($record->current_progress ?? 0) . '%') : '-')
+                                        ->alignCenter()
+                                        ->columnSpan(1),
+
+                                    \Filament\Infolists\Components\TextEntry::make('task_status_label')
+                                        ->label('Status')
+                                        ->getStateUsing(fn ($record) => match($record->task?->status) {
+                                            'pending'     => 'Menunggu',
+                                            'in_progress' => 'Proses',
+                                            'completed'   => 'Selesai',
+                                            'cancelled'   => 'Batal',
+                                            default       => '-',
                                         })
                                         ->badge()
-                                        ->color(fn ($state) => str_contains($state, '100%') ? 'success' : ($state === 'N/A' ? 'gray' : 'primary'))
-                                        ->columnSpan(2),
-
-                                    \Filament\Infolists\Components\TextEntry::make('activity')
-                                        ->label('Deskripsi Aktivitas')
-                                        ->markdown()
-                                        ->columnSpanFull(),
+                                        ->color(fn ($state) => match($state) {
+                                            'Menunggu' => 'gray',
+                                            'Proses'   => 'info',
+                                            'Selesai'  => 'success',
+                                            'Batal'    => 'danger',
+                                            default    => 'gray',
+                                        })
+                                        ->columnSpan(1),
                                 ]),
                             ])
                             ->columns(1)

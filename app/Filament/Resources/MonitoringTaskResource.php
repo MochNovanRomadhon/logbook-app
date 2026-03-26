@@ -148,8 +148,9 @@ class MonitoringTaskResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('title')->label('Judul')->limit(30)->searchable(),
                 
-                Tables\Columns\TextColumn::make('assigned_to_names')
-                    ->label('Ditugaskan Kepada')
+                Tables\Columns\TextColumn::make('user.name')
+                    ->label('Pegawai')
+                    ->searchable()
                     ->getStateUsing(function (Task $record): string {
                         if ($record->task_group_id) {
                             $names = Task::where('task_group_id', $record->task_group_id)
@@ -364,8 +365,13 @@ class MonitoringTaskResource extends Resource
                                 ->badge()
                                 ->color('primary'),
                                 
-                            TextEntry::make('user.subunit.name')
-                                ->label('Pemilik Tugas (Sub Unit)')
+                            TextEntry::make('user_unit_info')
+                                ->label('Unit - Sub Unit')
+                                ->getStateUsing(function ($record) {
+                                    $unit = $record->user?->subunit?->unit?->name ?? $record->user?->unit?->name ?? '-';
+                                    $subunit = $record->user?->subunit?->name ?? '-';
+                                    return "{$unit} - {$subunit}";
+                                })
                                 ->visible(fn() => Auth::user()->hasRole(['super_admin', 'pengawas'])),
                         ]),
                     ]),
@@ -419,18 +425,20 @@ class MonitoringTaskResource extends Resource
 
                 InfoSection::make('Catatan')
                     ->schema([
-                        \Filament\Infolists\Components\RepeatableEntry::make('all_logbook_items')
+                        \Filament\Infolists\Components\RepeatableEntry::make('group_logbook_items')
                             ->label('')
                             ->schema([
                                 InfoGrid::make(4)->schema([
-                                    TextEntry::make('logbook.date')
+                                    TextEntry::make('logbook_date')
                                         ->label('Tanggal')
+                                        ->getStateUsing(fn ($record) => $record->logbook?->date)
                                         ->date('d M Y'),
-                                    TextEntry::make('pegawai_name')
+                                    TextEntry::make('user_name')
                                         ->label('Pegawai')
                                         ->getStateUsing(fn ($record) => $record->logbook?->user?->name ?? '-'),
-                                    TextEntry::make('activity')
-                                        ->label('Deskripsi'),
+                                    TextEntry::make('activity_desc')
+                                        ->label('Deskripsi')
+                                        ->getStateUsing(fn ($record) => $record->activity ?? '-'),
                                     TextEntry::make('progress_info')
                                         ->label('Progress')
                                         ->getStateUsing(function ($record) {
@@ -441,7 +449,7 @@ class MonitoringTaskResource extends Resource
                                         })
                                         ->badge()
                                         ->color(fn ($state) => str_contains($state, '100%') ? 'success' : ($state === 'N/A' ? 'gray' : 'primary')),
-                                    TextEntry::make('task_status_label')
+                                    TextEntry::make('task_status')
                                         ->label('Status Tugas')
                                         ->getStateUsing(fn ($record) => match($record->task?->status) {
                                             'pending'     => 'Menunggu',

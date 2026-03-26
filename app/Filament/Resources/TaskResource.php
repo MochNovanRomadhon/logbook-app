@@ -59,13 +59,23 @@ class TaskResource extends Resource
                             ->label('Ditugaskan ke')
                             ->options(function () {
                                 $currentUser = Auth::user();
-                                return User::query()
-                                    ->where(function ($q) use ($currentUser) {
-                                        $q->whereHas('roles', fn($r) => $r->where('name', 'pegawai'))
-                                          ->orWhere('id', $currentUser->id);
-                                    })
+                                $query = User::query()
                                     ->where('is_active', true)
-                                    ->pluck('name', 'id');
+                                    ->where('id', '!=', $currentUser->id);
+
+                                // Scope berdasarkan organisasi pengawas
+                                if ($currentUser->subunit_id) {
+                                    $query->where('subunit_id', $currentUser->subunit_id);
+                                } elseif ($currentUser->unit_id) {
+                                    $query->where(function ($q) use ($currentUser) {
+                                        $q->where('unit_id', $currentUser->unit_id)
+                                          ->orWhereHas('subunit', fn ($s) => $s->where('unit_id', $currentUser->unit_id));
+                                    });
+                                } elseif ($currentUser->directorate_id) {
+                                    $query->where('directorate_id', $currentUser->directorate_id);
+                                }
+
+                                return $query->pluck('name', 'id');
                             })
                             ->multiple()
                             ->searchable()
@@ -217,6 +227,18 @@ class TaskResource extends Resource
                     ->label('Urgensi')
                     ->placeholder('Pilih Urgensi')
                     ->options([1 => '1', 2 => '2', 3 => '3', 4 => '4', 5 => '5']),
+
+                Tables\Filters\Filter::make('deadline_range')
+                    ->label('Rentang Deadline')
+                    ->form([
+                        \Filament\Forms\Components\Grid::make(2)->schema([
+                            \Filament\Forms\Components\DatePicker::make('deadline_from')->label('Dari'),
+                            \Filament\Forms\Components\DatePicker::make('deadline_until')->label('Sampai'),
+                        ]),
+                    ])
+                    ->query(fn (Builder $query, array $data) => $query
+                        ->when($data['deadline_from'], fn ($q, $d) => $q->whereDate('deadline', '>=', $d))
+                        ->when($data['deadline_until'], fn ($q, $d) => $q->whereDate('deadline', '<=', $d))),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
@@ -281,8 +303,15 @@ class TaskResource extends Resource
                                         return \App\Models\User::whereIn('id', $userIds)->pluck('name')->implode(', ');
                                     }
                                     return $record->user?->name ?? '-';
-                                })
-                                ->columnSpanFull(),
+                                }),
+
+                            TextEntry::make('user_unit_info')
+                                ->label('Unit - Sub Unit')
+                                ->getStateUsing(function ($record) {
+                                    $unit = $record->user?->subunit?->unit?->name ?? $record->user?->unit?->name ?? '-';
+                                    $subunit = $record->user?->subunit?->name ?? '-';
+                                    return "{$unit} - {$subunit}";
+                                }),
                         ]),
                     ]),
 

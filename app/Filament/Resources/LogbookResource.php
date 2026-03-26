@@ -88,7 +88,7 @@ class LogbookResource extends Resource
                                         Grid::make(2)->schema([
                                             Select::make('task_id')
                                                 ->label('Pilih Tugas')
-                                                ->helperText('Hanya tugas berstatus "Proses" yang muncul. Jika belum klik mulai/proses di Daftar Tugas, ubah statusnya terlebih dahulu.')
+                                                ->helperText('Tugas yang tidak tampil berarti belum berstatus "Proses". Ubah status terlebih dahulu di Daftar Tugas. Jika memilih "Pekerjaan Lainnya" dan tidak selesai dalam sekali pengerjaan, wajib dibuatkan sebagai tugas baru.')
                                                 ->options(function (Get $get, $component) {
                                                     $taskQuery = \App\Models\Task::where('user_id', Auth::id())
                                                         ->where('status', 'in_progress')
@@ -302,58 +302,57 @@ class LogbookResource extends Resource
     {
         return $infolist
             ->schema([
-                \Filament\Infolists\Components\Section::make('Informasi Utama')
+                \Filament\Infolists\Components\Section::make('')
                     ->schema([
                         \Filament\Infolists\Components\Grid::make(3)->schema([
                             \Filament\Infolists\Components\TextEntry::make('date')
-                                ->label('Tanggal Laporan')
+                                ->label('Tanggal')
                                 ->date('d F Y')
                                 ->weight('bold'),
 
-                            \Filament\Infolists\Components\TextEntry::make('is_submitted')
-                                ->label('Status')
-                                ->badge()
-                                ->formatStateUsing(fn (bool $state) => $state ? 'Final (Terkunci)' : 'Draft')
-                                ->colors(['gray' => false, 'success' => true]),
+                            \Filament\Infolists\Components\TextEntry::make('user.name')
+                                ->label('Dibuat oleh')
+                                ->weight('bold'),
 
-                            \Filament\Infolists\Components\TextEntry::make('items_count')
-                                ->label('Total Aktivitas')
-                                ->getStateUsing(fn($record) => $record->items()->count()),
+                            \Filament\Infolists\Components\TextEntry::make('unit_subunit_info')
+                                ->label('Unit - Sub Unit')
+                                ->getStateUsing(function ($record) {
+                                    $unit = $record->user?->subunit?->unit?->name ?? $record->user?->unit?->name ?? '-';
+                                    $subunit = $record->user?->subunit?->name ?? '-';
+                                    return "{$unit} - {$subunit}";
+                                }),
                         ]),
                     ]),
 
-                \Filament\Infolists\Components\Section::make('Rincian Aktivitas')
+                \Filament\Infolists\Components\Section::make('')
                     ->schema([
                         \Filament\Infolists\Components\RepeatableEntry::make('items')
                             ->label('')
                             ->schema([
-                                \Filament\Infolists\Components\Grid::make(4)->schema([
-                                    \Filament\Infolists\Components\TextEntry::make('task.title')
-                                        ->label('Pekerjaan/Tugas')
-                                        ->getStateUsing(fn ($record) => $record->task_id ? $record->task->title : $record->custom_task_name)
-                                        ->weight('bold')
-                                        ->size(\Filament\Infolists\Components\TextEntry\TextEntrySize::Large)
-                                        ->columnSpan(2),
-
-                                    \Filament\Infolists\Components\TextEntry::make('progress_change')
-                                        ->label('Progress')
-                                        ->getStateUsing(function ($record) {
-                                            if (!$record->task_id) return 'N/A';
-                                            $prev = $record->previous_progress ?? 0;
-                                            $curr = $record->current_progress ?? 0;
-                                            return "{$prev}% ➝ {$curr}%";
-                                        })
-                                        ->badge()
-                                        ->color(fn ($state) => str_contains($state, '100%') ? 'success' : ($state === 'N/A' ? 'gray' : 'primary'))
-                                        ->columnSpan(2),
-
+                                \Filament\Infolists\Components\Grid::make(5)->schema([
                                     \Filament\Infolists\Components\TextEntry::make('activity')
-                                        ->label('Deskripsi Aktivitas')
-                                        ->markdown()
-                                        ->columnSpanFull(),
+                                        ->label('Deskripsi Pekerjaan')
+                                        ->columnSpan(1),
+
+                                    \Filament\Infolists\Components\TextEntry::make('task_name')
+                                        ->label('Tugas')
+                                        ->getStateUsing(fn ($record) => $record->task_id ? ($record->task?->title ?? '-') : ($record->custom_task_name ?? '-'))
+                                        ->columnSpan(1),
+
+                                    \Filament\Infolists\Components\TextEntry::make('previous_progress')
+                                        ->label('Persentase Sebelumnya')
+                                        ->getStateUsing(fn ($record) => $record->task_id ? (($record->previous_progress ?? 0) . '%') : '-')
+                                        ->alignCenter()
+                                        ->columnSpan(1),
+
+                                    \Filament\Infolists\Components\TextEntry::make('current_progress')
+                                        ->label('Persentase Sekarang')
+                                        ->getStateUsing(fn ($record) => $record->task_id ? (($record->current_progress ?? 0) . '%') : '-')
+                                        ->alignCenter()
+                                        ->columnSpan(1),
 
                                     \Filament\Infolists\Components\TextEntry::make('task_status_label')
-                                        ->label('Status Tugas')
+                                        ->label('Status')
                                         ->getStateUsing(fn ($record) => match($record->task?->status) {
                                             'pending'     => 'Menunggu',
                                             'in_progress' => 'Proses',
@@ -368,7 +367,8 @@ class LogbookResource extends Resource
                                             'Selesai'  => 'success',
                                             'Batal'    => 'danger',
                                             default    => 'gray',
-                                        }),
+                                        })
+                                        ->columnSpan(1),
                                 ]),
                             ])
                             ->columns(1)

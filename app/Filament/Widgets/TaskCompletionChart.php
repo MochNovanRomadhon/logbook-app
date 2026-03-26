@@ -34,13 +34,6 @@ class TaskCompletionChart extends ChartWidget
 
     public function getHeading(): ?string
     {
-        $user = Auth::user();
-        if ($user->hasRole('pengawas')) {
-            $filters = $this->filters;
-            if (empty($filters['directorate_id']) && empty($filters['unit_id']) && empty($filters['subunit_id'])) {
-                return 'Menunggu Filter...';
-            }
-        }
         return 'Statistik Tugas';
     }
 
@@ -49,11 +42,7 @@ class TaskCompletionChart extends ChartWidget
     {
         $user = Auth::user();
         if ($user->hasRole('pengawas')) {
-            $filters = $this->filters;
-            if (empty($filters['directorate_id']) && empty($filters['unit_id']) && empty($filters['subunit_id'])) {
-                return 'Mohon pilih minimal Direktorat untuk menampilkan data.';
-            }
-            return 'Jumlah tugas pada unit kerja yang dipilih berdasarkan filter tanggal';
+            return 'Jumlah tugas pada unit kerja berdasarkan filter tanggal';
         }
         return 'Grafik tren jumlah tugas harian berdasarkan tenggat waktu';
     }
@@ -140,6 +129,17 @@ class TaskCompletionChart extends ChartWidget
         $directorateId = $filters['directorate_id'] ?? null;
         $unitId = $filters['unit_id'] ?? null;
         $subunitId = $filters['subunit_id'] ?? null;
+
+        // Auto-fill from pengawas scope if filters are empty
+        if (empty($directorateId) && empty($unitId) && empty($subunitId)) {
+            if ($user->subunit_id) {
+                $subunitId = $user->subunit_id;
+            } elseif ($user->unit_id) {
+                $unitId = $user->unit_id;
+            } elseif ($user->directorate_id) {
+                $directorateId = $user->directorate_id;
+            }
+        }
 
         if (empty($directorateId) && empty($unitId) && empty($subunitId)) {
             return [

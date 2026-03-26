@@ -44,12 +44,9 @@ class Dashboard extends BaseDashboard
 
     public function mount(): void
     {
-        $this->resetFilters(); // Set default saat awal load
-    }
-
-    // Fungsi khusus untuk mereset filter ke default
-    public function resetFilters(): void
-    {
+        $user = Auth::user();
+        
+        // Default date range
         $this->data = [
             'startDate' => now()->startOfWeek(),
             'endDate' => now()->endOfWeek(),
@@ -57,8 +54,25 @@ class Dashboard extends BaseDashboard
             'unit_id' => null,
             'subunit_id' => null,
         ];
-        $this->filters = []; // Kosongkan filter aktif
-        $this->hasSearched = false; // Kembali ke mode instruksi
+        
+        // Auto-set filters for Pengawas based on their org scope
+        if ($user->hasRole('pengawas')) {
+            if ($user->subunit_id) {
+                $this->data['subunit_id'] = $user->subunit_id;
+                $this->data['unit_id'] = $user->subunit?->unit_id;
+                $this->data['directorate_id'] = $user->subunit?->unit?->directorate_id;
+            } elseif ($user->unit_id) {
+                $this->data['unit_id'] = $user->unit_id;
+                $this->data['directorate_id'] = $user->unit?->directorate_id;
+            } elseif ($user->directorate_id) {
+                $this->data['directorate_id'] = $user->directorate_id;
+            }
+            $this->filters = $this->data;
+            $this->hasSearched = true;
+        } else {
+            $this->filters = [];
+            $this->hasSearched = false;
+        }
     }
 
 public function filtersForm(Form $form): Form
@@ -80,74 +94,46 @@ public function filtersForm(Form $form): Form
                         ->label('Atur ulang filter')
                         ->link()
                         ->color('danger')
-                        ->action(fn () => $this->resetFilters())
+                        ->action(function () {
+                            $user = Auth::user();
+                            $this->data['startDate'] = now()->startOfWeek();
+                            $this->data['endDate'] = now()->endOfWeek();
+                            if ($user->hasRole('pengawas')) {
+                                // Reset date only, keep org scope
+                                $this->filters = $this->data;
+                                $this->hasSearched = true;
+                            } else {
+                                $this->filters = [];
+                                $this->hasSearched = false;
+                            }
+                        })
                 ])
                 ->schema([
-                    // 1. FILTER HIERARKI
-                    Group::make()
+                   // FILTER TANGGAL & TOMBOL CARI
+                    Grid::make(3)
                         ->schema([
-                            Grid::make(3)->schema([
-                                Select::make('directorate_id')
-                                    ->label('Direktorat')
-                                    ->options(Directorate::pluck('name', 'id'))
-                                    ->searchable()
-                                    ->live() 
-                                    ->disabled(fn (Get $get) => filled($get('unit_id')))
-                                    ->afterStateUpdated(fn (callable $set) => $set('unit_id', null)),
+                            DatePicker::make('startDate')
+                                ->label('Tanggal Awal'),
+                            
+                            DatePicker::make('endDate')
+                                ->label('Tanggal Akhir'),
 
-                                Select::make('unit_id')
-                                    ->label('Unit')
-                                    ->options(fn (Get $get) => Unit::where('directorate_id', $get('directorate_id'))->pluck('name', 'id'))
-                                    ->searchable()
-                                    ->live()
-                                    ->disabled(fn (Get $get) => filled($get('subunit_id')) || blank($get('directorate_id')))
-                                    ->afterStateUpdated(fn (callable $set) => $set('subunit_id', null)),
-
-                                Select::make('subunit_id')
-                                    ->label('Sub Unit')
-                                    ->options(fn (Get $get) => Subunit::where('unit_id', $get('unit_id'))->pluck('name', 'id'))
-                                    ->searchable()
-                                    ->disabled(fn (Get $get) => blank($get('unit_id'))),
-                            ]),
-                        ])
-                        ->visible($isPengawas),
-
-                   // 2. FILTER TANGGAL & TOMBOL CARI
-// 2. FILTER TANGGAL & TOMBOL CARI
-Grid::make(3)
-    ->schema([
-        DatePicker::make('startDate')
-            ->label('Tanggal Awal'),
-            // ->required(),
-        
-        DatePicker::make('endDate')
-            ->label('Tanggal Akhir'),
-            // ->required(),
-
-        // --- SOLUSI AMPUH: MANUAL MARGIN ---
-        // 1. Jangan pakai Group.
-        // 2. Jangan pakai Placeholder/Label Palsu.
-        // 3. Langsung Actions.
-        Actions::make([
-            Action::make('filter')
-                ->label('Cari')
-                ->icon('heroicon-m-magnifying-glass')
-                ->color('primary')
-                ->action(function () {
-            // --- TAMBAHAN PENTING ---
-            // Validasi dulu input form ($this->data). 
-            // Jika kosong/tidak valid, kode di bawahnya BERHENTI dan tidak dijalankan.
-            $this->validate(); 
-
-            $this->filters = $this->data;
-            $this->hasSearched = true; 
-        })
-        ])
-        ->fullWidth() // Agar tombol melebar penuh
-        ->extraAttributes([
-            'style' => 'margin-top: 32px'
-        ]), 
-    ]),
+                            Actions::make([
+                                Action::make('filter')
+                                    ->label('Cari')
+                                    ->icon('heroicon-m-magnifying-glass')
+                                    ->color('primary')
+                                    ->action(function () {
+                                        $this->validate(); 
+                                        $this->filters = $this->data;
+                                        $this->hasSearched = true; 
+                                    })
+                            ])
+                            ->fullWidth()
+                            ->extraAttributes([
+                                'style' => 'margin-top: 32px'
+                            ]), 
+                        ]),
                 ])
                 ->collapsible()
         ]);
@@ -168,11 +154,9 @@ Grid::make(3)
         $isPengawas = $user->hasRole('pengawas');
 
         // Cek 2: Jika dia Pengawas DAN Belum Klik Cari, WAJIB munculkan instruksi.
+        // (Untuk pengawas dengan auto-display, hasSearched sudah true dari mount)
         if ($isPengawas && ! $this->hasSearched) {
-            return [ DashboardInstructionWidget::class,
-                    
-            
-            ];
+            return [ DashboardInstructionWidget::class ];
         }
 
         // --- QUERY DATA (Dijalankan jika sudah cari, atau jika user BUKAN pengawas) ---
